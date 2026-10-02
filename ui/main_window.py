@@ -238,9 +238,17 @@ class MainWindow(QWidget):
         by the client's SDK gate). STOVE must be running in the background."""
         try:
             os.startfile(data.game_launch_uri())
-            self._status("Game launching via STOVE... (first launch takes a moment)")
         except OSError as e:
             self._status(f"Launch failed: {e}")
+            return
+        self._status("Game launching via STOVE... (can take up to ~2 min)")
+        QTimer.singleShot(150_000, self._check_launch)
+
+    def _check_launch(self) -> None:
+        """If STOVE never brought the game up, its launcher tab is likely stuck."""
+        if not data.game_running():
+            self._status("STOVE did not launch the game - right-click the STOVE tray "
+                         "icon, Exit, reopen it, then press Run Game again")
 
     def _pick_game_dir(self) -> None:
         """Browse for the game folder (only offered while none was found)."""
