@@ -28,7 +28,8 @@ class SpinePrep(QThread):
 
     def run(self) -> None:
         import sys
-        sp = os.path.join(os.path.dirname(theme.HERE), "scripts")
+        import data
+        sp = os.path.join(data.ROOT, "scripts")     # _MEIPASS/scripts when frozen
         if sp not in sys.path:
             sys.path.insert(0, sp)
         try:

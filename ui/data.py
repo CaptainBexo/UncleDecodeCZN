@@ -17,7 +17,9 @@ import zlib
 from dataclasses import dataclass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)          # repo root, or the portable tool folder in dist
+# ui/*.py freeze FLATTENED at the bundle root, so HERE == _MEIPASS when frozen -
+# ROOT must stay _MEIPASS there or every bundled path (decoded/, scripts/) breaks.
+ROOT = HERE if getattr(sys, "frozen", False) else os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 # Writable app data (game_path.txt) goes next to the exe when packaged frozen.
 APP = os.environ.get("CZN_APP_DIR") or (
