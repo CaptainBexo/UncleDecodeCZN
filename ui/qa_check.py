@@ -604,7 +604,7 @@ def main() -> None:
     check("page override swaps the mod image into the atlas page",
           os.path.isfile(page) and Image.open(page).size == (2040, 1948),
           str(Image.open(page).size) if os.path.isfile(page) else "missing")
-    real_mods = r"D:\UncleDecodeCZN\dist_exe\Mods"
+    real_mods = os.path.join(data.ROOT, "dist_exe", "Mods")
     m1017 = None
     if os.path.isdir(real_mods):
         ren, roff = data.scan(real_mods)

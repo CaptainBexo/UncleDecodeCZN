@@ -22,11 +22,17 @@ WORK = os.path.join(DISTP, "_build")
 
 # Runtime-imported sources ship as plain data (cznmod + scripts are imported via
 # sys.path at runtime, so PyInstaller does not have to freeze them; their deps below do).
+# ONLY the scripts the tool imports at runtime ship publicly - the rest of scripts/
+# (decode/probe/build one-offs, with dev-machine paths) stays home. Keep SCRIPTS in
+# sync with privacy_audit.SHIP_SCRIPTS.
 # ui/ modules freeze FLATTENED at the bundle root (theme.py -> _MEIPASS/theme.py), so
 # theme's HERE points at _MEIPASS: its assets must land at _MEIPASS/assets, not ui/assets.
+SCRIPTS = ["czn_pack.py", "czn_paths.py", "char_catalog.py", "export_char.py",
+           "spine_prep.py", "scsp2json.py", "sct2.py", "sct2_enc.py", "modpack.py",
+           "stealth_check.py"]
 DATA = [
     (os.path.join(ROOT, "cznmod.py"), "."),
-    (os.path.join(ROOT, "scripts"), "scripts"),
+    *[(os.path.join(ROOT, "scripts", s), "scripts") for s in SCRIPTS],
     (os.path.join(ROOT, "ui", "assets"), "assets"),
     (os.path.join(ROOT, "decoded", "names_all.json"), "decoded"),
     (os.path.join(ROOT, "tools", "astcenc-avx2.exe"), "tools"),
@@ -108,6 +114,24 @@ def write_readme():
         fh.write(README_TXT)
 
 
+def write_release(exe: str) -> str:
+    """Assemble the shippable folder + zip: exe + README only. Never point people
+    at dist_exe/ itself - it is the dev workspace (Mods/, backup/, cache/, _build/)."""
+    import zipfile
+    rel = os.path.join(ROOT, "release", NAME)
+    shutil.rmtree(rel, ignore_errors=True)
+    os.makedirs(rel)
+    shutil.copy2(exe, os.path.join(rel, os.path.basename(exe)))
+    shutil.copy2(os.path.join(DISTP, "README.txt"), os.path.join(rel, "README.txt"))
+    zip_path = os.path.join(ROOT, "release", NAME + ".zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for fn in (os.path.basename(exe), "README.txt"):
+            z.write(os.path.join(rel, fn), NAME + "/" + fn)
+    print("release:", rel)
+    print(f"zip:     {zip_path} ({os.path.getsize(zip_path) / 1e6:.1f} MB)")
+    return rel
+
+
 def main():
     args = [
         os.path.join(ROOT, "ui", "main.py"),
@@ -130,6 +154,16 @@ def main():
     os.replace(built, final)
     write_readme()
     print("exe:", final, f"({os.path.getsize(final) / 1e6:.1f} MB)")
+
+    # nothing dev/personal may reach customers: audit before assembling the release
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import privacy_audit
+    rc = privacy_audit.main(["--exe", final])
+    if rc != 0:
+        print("[X] privacy audit found leaks - release NOT assembled, fix the hits above")
+        return rc
+    write_release(final)
+    return 0
 
 
 if __name__ == "__main__":

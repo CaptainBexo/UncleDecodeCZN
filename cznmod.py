@@ -420,10 +420,13 @@ def watch():
 
 
 def cmd_stamp(png, target):
-    """(Re)write the "czn-target" tag of a png so it self-describes its pack path."""
+    """(Re)write the "czn-target" tag of a png so it self-describes its pack path.
+    The re-save also drops editor metadata (Paint.NET/Photoshop/EXIF): a picked
+    file carries nothing but the image and its target - handy before sharing."""
     from PIL import Image, PngImagePlugin
     im = Image.open(png)
     im.load()
+    im.info.pop("exif", None)
     pi = PngImagePlugin.PngInfo()
     pi.add_text("czn-target", target.replace("\\", "/"))
     im.save(png, "PNG", pnginfo=pi)

@@ -4,11 +4,13 @@ __pycache__/
 cache/
 dist/
 dist_exe/
+release/
 backup/
 refs/
 Mods/
 extract/
 decoded/*
 !decoded/names_all.json
-ui/shots/_spine/
+ui/shots/
 ui/qa_out.txt
+ui/e2e_ctx_menu.py

@@ -14,6 +14,7 @@ Public: unwrap(data) -> bytes, to_json(inner) -> dict, convert(path) -> dict.
 """
 import json
 import math
+import os
 import struct
 import sys
 
@@ -1113,11 +1114,15 @@ def convert(path):
 
 # --- self-check / CLI ------------------------------------------------------
 
-FIXTURES = (r"CZN_FIXTURES")
+FIXTURES = os.environ.get("CZN_FIXTURES", "")   # optional: dir with sample .scsp files
 
 
 def _selftest():
     import os
+    if not FIXTURES or not os.path.isdir(FIXTURES):
+        print("[i] no fixture dir (set CZN_FIXTURES to a folder of sample .scsp files) "
+              "- selftest skipped")
+        return 0
     files = ["model__1041.scsp", "card__unique_1041_01.scsp",
              "effect__lenore_1041_ug_eff_petal.scsp", "face__portrait__1041.scsp"]
     ok = True
