@@ -15,7 +15,6 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
-import sys
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QLineEdit,
@@ -26,10 +25,6 @@ import data
 import theme
 from widgets.spine_panel import SpinePanel, SpinePrep
 from widgets.title_bar import DragRow
-
-SCRIPTS = os.path.join(data.ROOT, "scripts")
-if SCRIPTS not in sys.path:
-    sys.path.insert(0, SCRIPTS)
 
 IMAGE_EXT = (".png", ".webp", ".jpg", ".jpeg", ".bmp", ".gif")
 
@@ -105,9 +100,9 @@ class ViewerDock(QWidget):
         self.path = QLineEdit(self)
         self.path.setObjectName("searchBox")
         self.path.setFixedHeight(32)
-        self.path.setPlaceholderText("Mod name, model/1041.scsp, or a .skel/.atlas/.png...")
+        self.path.setPlaceholderText("Mod name, model/1041.scsp or an image...")
         self.path.setToolTip("Type a mod name, a pack path like model/1041.scsp, "
-                             "or a local .skel/.atlas/.png path, then press Enter. "
+                             "or a local image path, then press Enter. "
                              "The Load button opens a file picker; dropping a file on "
                              "the window loads it too.")
         self.path.returnPressed.connect(self.load_text)
@@ -187,7 +182,7 @@ class ViewerDock(QWidget):
         slug = "mod_" + hashlib.sha1(("%s|%s" % (base, img)).encode("utf-8")).hexdigest()[:8]
         self._last = ("modspine", base, img)
         self._say("Preparing %s with %s ..." % (base, os.path.basename(img)))
-        self._prep = SpinePrep("pack", base + ".scsp", slug,
+        self._prep = SpinePrep(base + ".scsp", slug,
                                os.path.join(data.SPINE_CACHE, slug), override, self)
         self._prep.done.connect(self._spine_ready)
         self._prep.start()
@@ -198,20 +193,12 @@ class ViewerDock(QWidget):
         start = self.path.text().strip()
         start = start if os.path.isdir(start) else os.path.dirname(start)
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Spine files", start,
-            "Spine files (*.skel *.json *.atlas *.png *.webp *.jpg *.jpeg *.bmp);;All files (*)")
+            self, "Open an image", start,
+            "Images (*.png *.webp *.jpg *.jpeg *.bmp *.gif *.sct);;All files (*)")
         if not path:
             return
         self.path.setText(path)
         self.load_text()
-
-    def _has_trio(self, path: str) -> bool:
-        try:
-            import spine_prep
-            spine_prep.pick_trio(path)
-            return True
-        except Exception:  # noqa: BLE001 - no trio beside it: plain image then
-            return False
 
     def _pack_base(self, path: str) -> str:
         """A pack model whose name matches this file's stem, e.g.
@@ -224,21 +211,12 @@ class ViewerDock(QWidget):
     def load_text(self) -> None:
         text = self.path.text().strip()
         if not text:
-            self._say("Type a mod name, a .scsp pack path, a .skel/.atlas file or an image", error=True)
-            return
-        if os.path.isdir(text):
-            self.load_trio(text)
+            self._say("Type a mod name, a .scsp pack path or an image", error=True)
             return
         if os.path.isfile(text):
             ext = os.path.splitext(text)[1].lower()
-            if ext in (".skel", ".json", ".atlas"):
-                self.load_trio(text)
-                return
             if ext in IMAGE_EXT or ext == ".sct":
-                if self._has_trio(text):
-                    self.load_trio(text)             # an image syncs with its Spine siblings
-                    return
-                base = self._pack_base(text)         # ...or with the game's own model
+                base = self._pack_base(text)         # sync with the game's own model
                 if base:
                     self.load_mod_spine(base, text)  # play it with this image as its page
                     return
@@ -277,18 +255,7 @@ class ViewerDock(QWidget):
         slug = name[: -len(".scsp")].replace("/", "__")
         self._last = ("spine", name)
         self._say("Preparing %s ..." % name)
-        self._prep = SpinePrep("pack", name, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
-        self._prep.done.connect(self._spine_ready)
-        self._prep.start()
-
-    def load_trio(self, path: str) -> None:
-        """Local standard Spine files: a .skel/.json, a .atlas, or a folder with them."""
-        if self._prep is not None and self._prep.isRunning():
-            return
-        slug = "local_" + hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:8]
-        self._last = ("trio", path)
-        self._say("Preparing %s ..." % os.path.basename(path))
-        self._prep = SpinePrep("files", path, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
+        self._prep = SpinePrep(name, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
         self._prep.done.connect(self._spine_ready)
         self._prep.start()
 
@@ -299,8 +266,6 @@ class ViewerDock(QWidget):
         kind = self._last[0]
         if kind == "image":
             self.load_image(self._last[1])
-        elif kind == "trio":
-            self.load_trio(self._last[1])
         elif kind == "modspine":
             self.load_mod_spine(self._last[1], self._last[2])
         else:

@@ -488,16 +488,10 @@ def main() -> None:
           "z %s -> %s" % (st.get("z0"), st.get("z1")))
     check("drag pans the camera", st.get("dx", 0) < -5 and st.get("dy", 0) > 5,
           "dx=%s dy=%s" % (st.get("dx"), st.get("dy")))
-    # local standard trio (.skel/.json + .atlas + pages) + mod page override
+    # page override + premultiply correctness
     import spine_prep
-    trio_src = tempfile.mkdtemp(prefix="czn_qa_trio_")
-    spine_prep.prepare("face/portrait/1041.scsp", trio_src)
-    trio_out = tempfile.mkdtemp(prefix="czn_qa_trio_out_")
-    info = spine_prep.prepare_trio(trio_src, trio_out)
-    check("local Spine trio loads from disk (.json/.atlas/png)",
-          os.path.isfile(os.path.join(trio_out, "skeleton.json"))
-          and os.path.isfile(os.path.join(trio_out, "skeleton.atlas"))
-          and bool(info["pages"]), str(info["pages"]))
+    prep_src = tempfile.mkdtemp(prefix="czn_qa_prep_")
+    spine_prep.prepare("face/portrait/1041.scsp", prep_src)
     from PIL import Image as _PImage, ImageDraw as _PImageDraw
     _st = _PImage.new("RGBA", (200, 200), (0, 0, 0, 0))
     _PImageDraw.Draw(_st).ellipse((30, 30, 170, 170), fill=(200, 30, 30, 128))
@@ -509,48 +503,37 @@ def main() -> None:
     _o2 = spine_prep._page_ready(_pm)
     check("premultiplied pages pass through untouched",
           _o2.getpixel((100, 100)) == (100, 15, 15, 128), str(_o2.getpixel((100, 100))))
-    skel, atlas_path = spine_prep.pick_trio(os.path.join(trio_src, "1041.png"))
-    check("picking a .png syncs its .skel/.atlas siblings",
-          os.path.isfile(skel) and os.path.isfile(atlas_path),
-          "%s + %s" % (os.path.basename(skel), os.path.basename(atlas_path)))
-    win.dock.load_trio(trio_src)
-    for _ in range(600):
-        app.processEvents()
-        time.sleep(0.02)
-        if "m=local_" in win.dock.panel.view.url().toString():
-            break
-    check("dock loads a local trio folder", "m=local_" in win.dock.panel.view.url().toString(),
-          win.dock.panel.view.url().toString())
+    # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
+    _png = os.path.join(prep_src, "1041.png")
     _orig_pick = QFileDialog.getOpenFileName
-    QFileDialog.getOpenFileName = staticmethod(
-        lambda *a, **k: (os.path.join(trio_src, "1041.png"), ""))
+    QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (_png, ""))
     url_before = win.dock.panel.view.url().toString()
     win.dock.load_btn.click()
     QFileDialog.getOpenFileName = _orig_pick
-    for _ in range(600):
+    for _ in range(800):
         app.processEvents()
         time.sleep(0.02)
         if win.dock.panel.view.url().toString() != url_before:
             break
-    check("Load button picks a file and auto-syncs its siblings",
+    check("Load button picks a file and loads it",
           win.dock.panel.view.url().toString() != url_before
-          and "m=local_" in win.dock.panel.view.url().toString(),
+          and "m=mod_" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
     _md = QMimeData()
-    _md.setUrls([QUrl.fromLocalFile(os.path.join(trio_src, "1041.png"))])
+    _md.setUrls([QUrl.fromLocalFile(_png)])
     url_before = win.dock.panel.view.url().toString()
     _ev = QDropEvent(QPointF(60, 60), Qt.DropAction.CopyAction, _md,
                      Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
     win.dock.dropEvent(_ev)              # Qt's OS drag state can't be faked; the handler is ours
-    for _ in range(600):
+    for _ in range(800):
         app.processEvents()
         time.sleep(0.02)
         if win.dock.panel.view.url().toString() != url_before:
             break
     check("dropping a file on the viewer loads it",
           win.dock.panel.view.url().toString() != url_before
-          and "m=local_" in win.dock.panel.view.url().toString(),
+          and "m=mod_" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
     ov_png = os.path.join(dock_dir, "override.png")
     Image.new("RGBA", (64, 40), (10, 200, 10, 255)).save(ov_png)
@@ -566,21 +549,26 @@ def main() -> None:
         ren, roff = data.scan(real_mods)
         m1017 = next((x for x in (*ren, *roff) if x.desc.endswith("face/portrait/1017.sct")), None)
     if m1017 is not None:
+        _url0 = win.dock.panel.view.url().toString()
         win.dock.show_mod(m1017)
         for _ in range(800):
             app.processEvents()
             time.sleep(0.02)
-            if "m=mod_" in win.dock.panel.view.url().toString():
-                break
+            _u = win.dock.panel.view.url().toString()
+            if _u != _url0 and "m=mod_" in _u:
+                break              # earlier checks also end on m=mod_ pages: wait for the CHANGE
         check("mod preview plays the portrait spine with the mod page",
-              "m=mod_" in win.dock.panel.view.url().toString(),
+              win.dock.panel.view.url().toString() != _url0
+              and "m=mod_" in win.dock.panel.view.url().toString(),
               win.dock.panel.view.url().toString())
         _sk = {}
-        for _ in range(120):                # this page (not the previous one) must be set up
+        _slug = win.dock.panel.view.url().toString().split("m=")[-1].split("&")[0]
+        for _ in range(120):                # wait for THIS slug's page (an older mod_ page must not match)
             _r2 = {}
             win.dock.panel.view.page().runJavaScript(
-                "location.search.indexOf('mod_') >= 0 &&"
-                " !!(window.__viewer && window.__viewer.animationState)", lambda v: _r2.update(v=v))
+                "location.search.indexOf('%s') >= 0 &&"
+                " !!(window.__viewer && window.__viewer.animationState)" % _slug,
+                lambda v: _r2.update(v=v))
             for _ in range(4):
                 app.processEvents()
                 time.sleep(0.02)
@@ -646,53 +634,62 @@ def main() -> None:
           mtip == _STIPS[win.view.mods[0].status] and "face/" not in mtip, mtip)
 
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
-    from PySide6.QtGui import QHelpEvent
-    win._show_dock(False)               # the parked dock can cover the main toolbar
+    from PySide6.QtGui import QHelpEvent, QCursor
+    import ctypes as _ct
+
+    class _LII(_ct.Structure):
+        _fields_ = [("cbSize", _ct.c_uint), ("dwTime", _ct.c_uint)]
+
+    _li = _LII()
+    _li.cbSize = _ct.sizeof(_LII)
+    _idle_ms = 99999
+    if _ct.windll.user32.GetLastInputInfo(_ct.byref(_li)):
+        _idle_ms = _ct.windll.kernel32.GetTickCount() - _li.dwTime
+    win._show_dock(False)                   # the parked dock can cover the main toolbar
     for _ in range(5):
         app.processEvents()
         time.sleep(0.02)
-    menu["Mods"].click()                # back on the mods page: cursor coords must hit it
-    for _ in range(3):
-        app.processEvents()
-    btn = win.toolbar.refresh
-    from PySide6.QtGui import QCursor
-    QCursor.setPos(btn.mapToGlobal(QPoint(5, 5)))   # the follow timer hides a tip whose pointer is elsewhere
-    for _ in range(10):
-        app.processEvents()
-        time.sleep(0.02)
-    from widgets.float_tip import text_at as _text_at
-    _gp = btn.mapToGlobal(QPoint(5, 5))
-    print("  [d] refresh tip:", repr(_text_at(_gp)), "| widgetAt:", app.widgetAt(_gp),
-          "| btn visible:", btn.isVisible(), "| win active:", win.isActiveWindow())
-    _ok = False
-    for _ in range(6):                   # read before the 16ms poll tick can hide it again
-        QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
-                                               btn.mapToGlobal(QPoint(5, 5))))
-        app.processEvents()
-        _ok = win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip()
-        if _ok:
-            break
-        time.sleep(0.05)
-    check("float tooltip shows the control tip", _ok,
-          f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
-    rc = win.view.visualRect(win.view.item_model.index(0, 0))
-    lp = rc.center()
-    QCursor.setPos(win.view.viewport().mapToGlobal(lp))
-    for _ in range(10):
-        app.processEvents()
-        time.sleep(0.02)
-    _ok2 = False
-    for _ in range(6):
-        QApplication.sendEvent(win.view.viewport(),
-                               QHelpEvent(QEvent.Type.ToolTip, lp,
-                                          win.view.viewport().mapToGlobal(lp)))
-        app.processEvents()
-        _ok2 = win._tips.popup.text() == win.view.item_model.item(0).toolTip()
-        if _ok2:
-            break
-        time.sleep(0.05)
-    check("float tooltip resolves model tips on cards", _ok2,
-          win._tips.popup.text().replace("\n", " | "))
+    if _idle_ms < 3000:
+        # a live desktop fights synthetic hovers (and we would move the user's mouse)
+        print("  [i] desktop in use (idle %dms) - hover tooltip checks skipped" % _idle_ms)
+    else:
+        menu["Mods"].click()                # back on the mods page: cursor coords must hit it
+        for _ in range(3):
+            app.processEvents()
+        btn = win.toolbar.refresh
+        QCursor.setPos(btn.mapToGlobal(QPoint(5, 5)))   # the follow timer hides a tip whose pointer is elsewhere
+        for _ in range(10):
+            app.processEvents()
+            time.sleep(0.02)
+        _ok = False
+        for _ in range(6):                   # read before the 16ms poll tick can hide it again
+            QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
+                                                   btn.mapToGlobal(QPoint(5, 5))))
+            app.processEvents()
+            _ok = win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip()
+            if _ok:
+                break
+            time.sleep(0.05)
+        check("float tooltip shows the control tip", _ok,
+              f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
+        rc = win.view.visualRect(win.view.item_model.index(0, 0))
+        lp = rc.center()
+        QCursor.setPos(win.view.viewport().mapToGlobal(lp))
+        for _ in range(10):
+            app.processEvents()
+            time.sleep(0.02)
+        _ok2 = False
+        for _ in range(6):
+            QApplication.sendEvent(win.view.viewport(),
+                                   QHelpEvent(QEvent.Type.ToolTip, lp,
+                                              win.view.viewport().mapToGlobal(lp)))
+            app.processEvents()
+            _ok2 = win._tips.popup.text() == win.view.item_model.item(0).toolTip()
+            if _ok2:
+                break
+            time.sleep(0.05)
+        check("float tooltip resolves model tips on cards", _ok2,
+              win._tips.popup.text().replace("\n", " | "))
     # glide: one follow tick moves part of the way toward the pointer (not a jump)
     from widgets import float_tip as ft
 

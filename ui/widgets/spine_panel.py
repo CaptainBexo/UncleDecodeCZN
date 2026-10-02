@@ -22,11 +22,10 @@ class SpinePrep(QThread):
 
     done = Signal(bool, str, str)          # ok, slug, error-or-empty
 
-    def __init__(self, kind: str, src: str, slug: str, out_dir: str,
+    def __init__(self, src: str, slug: str, out_dir: str,
                  override: dict | None = None, parent=None) -> None:
         super().__init__(parent)
-        self._kind, self._src, self._slug, self._out, self._override = \
-            kind, src, slug, out_dir, override
+        self._src, self._slug, self._out, self._override = src, slug, out_dir, override
 
     def run(self) -> None:
         import sys
@@ -36,10 +35,7 @@ class SpinePrep(QThread):
             sys.path.insert(0, sp)
         try:
             import spine_prep
-            if self._kind == "pack":
-                spine_prep.prepare(self._src, self._out, self._override)
-            else:
-                spine_prep.prepare_trio(self._src, self._out)
+            spine_prep.prepare(self._src, self._out, self._override)
             self.done.emit(True, self._slug, "")
         except Exception as e:  # noqa: BLE001 - surface any prep failure in the panel
             self.done.emit(False, self._slug, "%s: %s" % (type(e).__name__, e))

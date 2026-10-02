@@ -74,16 +74,12 @@ Using it
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
   4. Preview: the "Viewer" button at the bottom-right opens the Viewer as a
      separate window (drag it by its header, resize from the corner, the X
-     hides it again). The Load button opens a file picker for .skel / .json /
-     .atlas / .png files - related files sync automatically, so picking one
-     .png finds its .skel and .atlas for you. The path bar does the same for
-     typed input:
+     hides it again). The Load button opens an image picker; dropping a file
+     on the window loads it too. The path bar loads:
        - a mod name (or the eye button on a mod card): a mod that replaces a
          character texture plays the real portrait animation with your image
          swapped in as the atlas page;
        - a game model by pack path (e.g. "model/1041.scsp" or just "1041");
-       - standard Spine files from disk: a .skel / .json / .atlas file, or a
-         folder containing them (plus the .png pages);
        - an image named after a game model (e.g. 1017.png): that model's
          animation plays with your image swapped in as its texture.
      The transport bar has play/pause, a timeline, speed and loop; the wheel
