@@ -239,11 +239,26 @@ class ViewerDock(QWidget):
 
     def _pack_base(self, path: str) -> str:
         """A pack model whose name matches this file's stem, e.g.
-        1017.png -> 'face/portrait/1017' (load_mod_spine swaps the image in)."""
+        1017.png -> 'face/portrait/1017' (load_mod_spine swaps the image in).
+        Export tools append a short hash - ignore it."""
+        import re
         stem = os.path.splitext(os.path.basename(path))[0].lower()
-        hits = [n for n in data.spine_files()
-                if os.path.splitext(os.path.basename(n))[0].lower() == stem]
-        return hits[0][: -len(".scsp")] if hits else ""
+        base = re.sub(r"_[0-9a-f]{6,8}$", "", stem)
+        for cand in (stem, base):
+            hits = [n for n in data.spine_files()
+                    if os.path.splitext(os.path.basename(n))[0].lower() == cand]
+            if hits:
+                return hits[0][: -len(".scsp")]
+        return ""
+
+    def _tag_target(self, path: str) -> str:
+        """The czn-target tag on an exported/mod png - the ground truth for what
+        the file replaces (more reliable than the file name)."""
+        try:
+            from PIL import Image
+            return (Image.open(path).info.get("czn-target") or "").strip()
+        except Exception:  # noqa: BLE001 - unreadable tag just means no tag
+            return ""
 
     def load_text(self) -> None:
         text = self.path.text().strip()
@@ -253,10 +268,16 @@ class ViewerDock(QWidget):
         if os.path.isfile(text):
             ext = os.path.splitext(text)[1].lower()
             if ext in IMAGE_EXT or ext == ".sct":
-                base = self._pack_base(text)         # sync with the game's own model
-                if base:
-                    self.load_mod_spine(base, text)  # play it with this image as its page
+                tag = self._tag_target(text)
+                base = tag[: -len(".sct")] if tag.lower().endswith(".sct") else ""
+                if base and (base + ".scsp") in set(data.spine_files()):
+                    self.load_mod_spine(base, text)  # the tag knows the model
                     return
+                if not tag:
+                    base = self._pack_base(text)     # un-tagged: sync by file name
+                    if base and (base + ".scsp") in set(data.spine_files()):
+                        self.load_mod_spine(base, text)
+                        return
             self.load_image(text)
             return
         mods = self._mod_matches(text)

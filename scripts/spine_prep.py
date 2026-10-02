@@ -84,6 +84,16 @@ def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -
     data = to_json(unwrap(pack.extract(spine_name)))
     text, pages = _rewrite_pages(pack.extract(base + ".atlas").decode("utf-8", "replace"))
 
+    page_sizes = {}
+    _lines = text.splitlines()
+    for _i, _ln in enumerate(_lines):
+        if _i + 1 < len(_lines) and _lines[_i + 1].startswith("size:") and _ln and _ln[0] not in " \t":
+            try:
+                _w, _h = _lines[_i + 1].split(":", 1)[1].split(",")
+                page_sizes[_ln] = (int(_w), int(_h))
+            except ValueError:
+                pass
+
     _fresh(out_dir)
     with open(os.path.join(out_dir, "skeleton.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, separators=(",", ":"))
@@ -94,7 +104,11 @@ def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -
     for old, new in pages:
         dst = os.path.join(out_dir, new)
         if override_pages and old in override_pages:
-            _page_ready(Image.open(override_pages[old])).save(dst)
+            im = Image.open(override_pages[old]).convert("RGBA")
+            pw, ph = page_sizes.get(new, (0, 0))
+            if pw and ph and im.size != (pw, ph):
+                im = im.resize((pw, ph), Image.LANCZOS)   # wrong-size art still previews
+            _page_ready(im).save(dst)
         else:
             im, _meta = decode(pack.extract(folder + old))
             _page_ready(im).save(dst)

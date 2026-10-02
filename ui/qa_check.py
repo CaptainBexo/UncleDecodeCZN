@@ -550,13 +550,35 @@ def main() -> None:
           win.dock.panel.view.url().toString() != url_before
           and "m=mod_" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
+    from PIL.PngImagePlugin import PngInfo
+    _ti = PngInfo()
+    _ti.add_text("czn-target", "card/unique_1041_05.sct")
+    _tagged = os.path.join(prep_src, "some_other_name_ab12cd.png")
+    _PImage.open(_png).save(_tagged, pnginfo=_ti)
+    win.dock.path.setText(_tagged)
+    win.dock.load_text()
+    for _ in range(200):
+        app.processEvents()
+        time.sleep(0.02)
+        if win.dock._last and win.dock._last[0] == "modspine":
+            break
+    check("a tagged file loads by its tag, not its name",
+          win.dock._last and win.dock._last[0] == "modspine"
+          and win.dock._last[1] == "card/unique_1041_05",
+          str(win.dock._last))
+    _prep0 = getattr(win.dock, "_prep", None)   # let that prep finish before the next load
+    for _ in range(1200):
+        app.processEvents()
+        if _prep0 is None or not _prep0.isRunning():
+            break
+        time.sleep(0.05)
     ov_png = os.path.join(dock_dir, "override.png")
     Image.new("RGBA", (64, 40), (10, 200, 10, 255)).save(ov_png)
     ov_out = tempfile.mkdtemp(prefix="czn_qa_ov_")
     spine_prep.prepare("face/portrait/1041.scsp", ov_out, {"1041.sct": ov_png})
     page = os.path.join(ov_out, "1041.png")
     check("page override swaps the mod image into the atlas page",
-          os.path.isfile(page) and Image.open(page).size == (64, 40),
+          os.path.isfile(page) and Image.open(page).size == (2040, 1948),
           str(Image.open(page).size) if os.path.isfile(page) else "missing")
     real_mods = r"D:\UncleDecodeCZN\dist_exe\Mods"
     m1017 = None
@@ -564,17 +586,17 @@ def main() -> None:
         ren, roff = data.scan(real_mods)
         m1017 = next((x for x in (*ren, *roff) if x.desc.endswith("face/portrait/1017.sct")), None)
     if m1017 is not None:
-        _url0 = win.dock.panel.view.url().toString()
+        import hashlib as _hashlib
+        _exp = "mod_" + _hashlib.sha1(
+            ("face/portrait/1017|" + m1017.banner).encode("utf-8")).hexdigest()[:8]
         win.dock.show_mod(m1017)
         for _ in range(800):
             app.processEvents()
             time.sleep(0.02)
-            _u = win.dock.panel.view.url().toString()
-            if _u != _url0 and "m=mod_" in _u:
-                break              # earlier checks also end on m=mod_ pages: wait for the CHANGE
+            if _exp in win.dock.panel.view.url().toString():
+                break              # wait for THIS mod's slug, not any m=mod_ page
         check("mod preview plays the portrait spine with the mod page",
-              win.dock.panel.view.url().toString() != _url0
-              and "m=mod_" in win.dock.panel.view.url().toString(),
+              _exp in win.dock.panel.view.url().toString(),
               win.dock.panel.view.url().toString())
         _sk = {}
         _slug = win.dock.panel.view.url().toString().split("m=")[-1].split("&")[0]
