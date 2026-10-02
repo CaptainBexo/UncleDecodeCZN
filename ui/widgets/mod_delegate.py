@@ -20,7 +20,7 @@ import theme
 from widgets.empty_state import url_paths
 
 BANNER_RATIO = 9 / 16
-BODY_H = 134          # title(2 lines) + path(2 lines) + status chip row + paddings
+BODY_H = 100          # title(2 lines) + one bottom row (target path + status chip)
 HOVER_MS = 130        # spec: 120-150 ms hover transition
 
 STATUS_COLORS = {
@@ -143,6 +143,10 @@ class CardDelegate(QStyledItemDelegate):
         path.addRoundedRect(QRectF(0, 0, w, h), theme.R_CARD, theme.R_CARD)
         path.addRect(QRectF(0, theme.R_CARD, w, h - theme.R_CARD))
         p.setClipPath(path)
+        if hover:
+            # opaque backing: the hover image REPLACES the cover - transparent
+            # areas of the mod png must not let the portrait bleed through
+            p.fillRect(QRectF(0, 0, w, h), QColor(theme.BG_CARD))
         src = self._source(mod, hover)
         if not src.isNull():
             scaled = src.scaled(pm.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
@@ -228,23 +232,21 @@ class CardDelegate(QStyledItemDelegate):
             p.drawText(QRectF(card.x() + 12, ty + fm_title.height(), w - 24, fm_title.height()),
                        Qt.AlignmentFlag.AlignLeft, l2)
 
-        # description (13px muted, max 2 lines)
-        fm_desc = QFontMetrics(self.f_desc)
-        d1, d2 = wrap_two(fm_desc, m.desc, int(w) - 24)
-        dy = ty + 2 * fm_title.height() + 5
-        p.setFont(self.f_desc)
-        p.setPen(QColor(theme.TEXT_MUTED))
-        p.drawText(QRectF(card.x() + 12, dy, w - 24, fm_desc.height()),
-                   Qt.AlignmentFlag.AlignLeft, d1)
-        if d2:
-            p.drawText(QRectF(card.x() + 12, dy + fm_desc.height(), w - 24, fm_desc.height()),
-                       Qt.AlignmentFlag.AlignLeft, d2)
-
-        # status chip (bottom-right, clickable)
+        # bottom row: target path (left, middle-elided) + status chip (right,
+        # clickable) share one line
         label = data.STATUS_TXT[m.status]
         cw = fm_small.horizontalAdvance(label) + 22
-        crect = QRectF(card.right() - 12 - cw, card.bottom() - 10 - 22, cw, 22)
+        ry = card.bottom() - 10 - 22
+        crect = QRectF(card.right() - 12 - cw, ry, cw, 22)
         self.chip_hit[idx.row()] = crect
+
+        fm_desc = QFontMetrics(self.f_desc)
+        dw = max(0, int(w) - 24 - cw - 8)
+        p.setFont(self.f_desc)
+        p.setPen(QColor(theme.TEXT_MUTED))
+        p.drawText(QRectF(card.x() + 12, ry, dw, 22), Qt.AlignmentFlag.AlignVCenter,
+                   fm_desc.elidedText(m.desc, Qt.TextElideMode.ElideMiddle, dw))
+
         bg, fg = STATUS_COLORS[m.status]
         p.setBrush(QColor(bg))
         p.setPen(Qt.PenStyle.NoPen)
