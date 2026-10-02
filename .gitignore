@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+dist/
+dist_exe/
+backup/
+refs/
+Mods/
+extract/
+decoded/*
+!decoded/names_all.json
