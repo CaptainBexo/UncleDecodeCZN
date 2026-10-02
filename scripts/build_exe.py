@@ -1,9 +1,11 @@
-"""Package the tool as a single-file exe: dist_exe/Uncle'sCZNMMMI v0.1.exe.
+"""Package the tool as a single-file exe: dist_exe/Uncle'sCZNMMMI v<VERSION>.exe.
 
   .venv\\Scripts\\python.exe scripts\\build_exe.py
 
+Bump VERSION on every release batch - it names the exe, the release folder/zip
+and the README header, all from this one spot.
 The exe is fully standalone (no Python needed): GUI when double-clicked, and the same
-file serves the command line via `Uncle'sCZNMMMI v0.1.exe --cli <cmd> ...`. Mods/,
+file serves the command line via `--cli <cmd> ...`. Mods/,
 backup/ and game_path.txt live next to the exe (main.py sets CZN_APP_DIR).
 Naming note: PyInstaller builds under a safe ASCII name, then the artifact is renamed -
 spaces/apostrophes never reach PyInstaller's internals.
@@ -14,9 +16,10 @@ import sys
 
 import PyInstaller.__main__ as pyi
 
+VERSION = "0.2"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NAME = "Uncle'sCZNMMMI v0.1"        # final artifact name
-SAFE = "UncleCZNMMMI_v0.1"          # internal build name
+NAME = f"Uncle'sCZNMMMI v{VERSION}"     # final artifact name
+SAFE = f"UncleCZNMMMI_v{VERSION}"       # internal build name
 DISTP = os.path.join(ROOT, "dist_exe")
 WORK = os.path.join(DISTP, "_build")
 
@@ -39,7 +42,7 @@ DATA = [
 ]
 HIDDEN = ["zstandard", "xxhash", "lz4", "lz4.block", "texture2ddecoder", "PIL", "PIL.Image"]
 
-README_TXT = """Uncle'sCZNMMMI v0.1 - image/UI mod manager for Chaos Zero Nightmare
+README_TXT = ("Uncle'sCZNMMMI v" + VERSION + """ - image/UI mod manager for Chaos Zero Nightmare
 =====================================================================
 
 What it does
@@ -105,7 +108,7 @@ Notes
   - Client-side mods: use at your own discretion, like any game mod.
   - Encoding needs a CPU with AVX2 (any gaming PC from ~2014+ has it).
   - The Spine viewer runs Esoteric Software's spine-ts runtime (3.8).
-"""
+""")
 
 
 def write_readme():
