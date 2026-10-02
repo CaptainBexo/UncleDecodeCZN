@@ -18,8 +18,9 @@ import shutil
 import sys
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QSizeGrip, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+                               QPushButton, QSizeGrip, QToolButton,
+                               QVBoxLayout, QWidget)
 
 import data
 import theme
@@ -104,16 +105,18 @@ class ViewerDock(QWidget):
         self.path = QLineEdit(self)
         self.path.setObjectName("searchBox")
         self.path.setFixedHeight(32)
-        self.path.setPlaceholderText("Mod name, model/1041.scsp or an image file...")
+        self.path.setPlaceholderText("Mod name, model/1041.scsp, or a .skel/.atlas/.png...")
         self.path.setToolTip("Type a mod name, a pack path like model/1041.scsp, "
-                             "or any local image / .sct file, then press Load")
+                             "or a local .skel/.atlas/.png path, then press Enter. "
+                             "The Load button opens a file picker instead.")
         self.path.returnPressed.connect(self.load_text)
         row.addWidget(self.path, 1)
         self.load_btn = QPushButton("Load", self)
         self.load_btn.setObjectName("dockBtn")
         self.load_btn.setFixedSize(64, 32)
-        self.load_btn.setToolTip("Preview what the path bar points at")
-        self.load_btn.clicked.connect(self.load_text)
+        self.load_btn.setToolTip("Pick .skel / .atlas / .png files - related files "
+                                 "(.skel, .atlas, pages) sync and load automatically")
+        self.load_btn.clicked.connect(self.pick_file)
         row.addWidget(self.load_btn)
         self.reload_btn = QPushButton("Reload", self)
         self.reload_btn.setObjectName("dockBtn")
@@ -170,6 +173,27 @@ class ViewerDock(QWidget):
         self._prep.done.connect(self._spine_ready)
         self._prep.start()
 
+    def pick_file(self) -> None:
+        """Load button: pick a Spine file; its siblings (.skel/.json, .atlas,
+        pages) are resolved automatically."""
+        start = self.path.text().strip()
+        start = start if os.path.isdir(start) else os.path.dirname(start)
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Spine files", start,
+            "Spine files (*.skel *.json *.atlas *.png *.webp *.jpg *.jpeg *.bmp);;All files (*)")
+        if not path:
+            return
+        self.path.setText(path)
+        self.load_text()
+
+    def _has_trio(self, path: str) -> bool:
+        try:
+            import spine_prep
+            spine_prep.pick_trio(path)
+            return True
+        except Exception:  # noqa: BLE001 - no trio beside it: plain image then
+            return False
+
     def load_text(self) -> None:
         text = self.path.text().strip()
         if not text:
@@ -183,12 +207,8 @@ class ViewerDock(QWidget):
             if ext in (".skel", ".json", ".atlas"):
                 self.load_trio(text)
                 return
-            stem = os.path.splitext(text)[0]
-            if ext in IMAGE_EXT and os.path.isfile(stem + ".atlas"):
-                self.load_trio(stem + ".atlas")     # an image beside its Spine files
-                return
-            if ext in IMAGE_EXT and os.path.isfile(stem + ".skel"):
-                self.load_trio(stem + ".skel")
+            if ext in IMAGE_EXT and self._has_trio(text):
+                self.load_trio(text)                 # an image syncs with its Spine siblings
                 return
             self.load_image(text)
             return

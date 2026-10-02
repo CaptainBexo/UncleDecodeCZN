@@ -88,8 +88,13 @@ def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -
             "animations": names, "binary": False}
 
 
-def _pick_trio(path: str) -> tuple[str, str]:
-    """Resolve (skeleton, atlas) from a .skel/.json/.atlas file or a folder."""
+_IMAGE_EXT = (".png", ".webp", ".jpg", ".jpeg", ".bmp", ".gif")
+
+
+def pick_trio(path: str) -> tuple[str, str]:
+    """Resolve (skeleton, atlas) from a .skel/.json/.atlas/.png file or a folder.
+    An image syncs with its Spine siblings: same stem first, then the folder's
+    single .skel/.json + .atlas pair."""
     if os.path.isdir(path):
         d = path
         skel = None
@@ -130,6 +135,21 @@ def _pick_trio(path: str) -> tuple[str, str]:
                 raise FileNotFoundError("no unique .atlas beside %s" % path)
             atlas = cands[0]
         return path, atlas
+    if ext in _IMAGE_EXT:                      # a page image: sync its Spine siblings
+        d = os.path.dirname(path) or "."
+        if os.path.isfile(stem + ".atlas"):
+            for sext in (".skel", ".json"):
+                if os.path.isfile(stem + sext):
+                    return stem + sext, stem + ".atlas"
+        skels = [f for f in sorted(os.listdir(d)) if f.lower().endswith((".skel", ".json"))]
+        atlases = [f for f in sorted(os.listdir(d)) if f.lower().endswith(".atlas")]
+        if len(skels) == 1 and atlases:
+            skel = os.path.join(d, skels[0])
+            atlas = os.path.splitext(skel)[0] + ".atlas"
+            if not os.path.isfile(atlas):
+                atlas = os.path.join(d, atlases[0])
+            return skel, atlas
+        raise FileNotFoundError("no .skel / .json + .atlas beside %s" % path)
     raise ValueError("not a .skel/.json/.atlas source: %s" % path)
 
 
@@ -138,7 +158,7 @@ def prepare_trio(path: str, out_dir: str) -> dict:
     A .sct page (game-extracted atlas) is decoded to .png on the way."""
     from PIL import Image
 
-    skel, atlas_path = _pick_trio(path)
+    skel, atlas_path = pick_trio(path)
     src_dir = os.path.dirname(atlas_path) or "."
     text = open(atlas_path, encoding="utf-8", errors="replace").read()
     pma = any(ln.strip().lower() == "pma: true" for ln in text.splitlines())

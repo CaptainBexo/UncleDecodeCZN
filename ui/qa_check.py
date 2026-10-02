@@ -459,6 +459,10 @@ def main() -> None:
           os.path.isfile(os.path.join(trio_out, "skeleton.json"))
           and os.path.isfile(os.path.join(trio_out, "skeleton.atlas"))
           and bool(info["pages"]), str(info["pages"]))
+    skel, atlas_path = spine_prep.pick_trio(os.path.join(trio_src, "1041.png"))
+    check("picking a .png syncs its .skel/.atlas siblings",
+          os.path.isfile(skel) and os.path.isfile(atlas_path),
+          "%s + %s" % (os.path.basename(skel), os.path.basename(atlas_path)))
     win.dock.load_trio(trio_src)
     for _ in range(600):
         app.processEvents()
@@ -466,6 +470,22 @@ def main() -> None:
         if "m=local_" in win.dock.panel.view.url().toString():
             break
     check("dock loads a local trio folder", "m=local_" in win.dock.panel.view.url().toString(),
+          win.dock.panel.view.url().toString())
+    from PySide6.QtWidgets import QFileDialog
+    _orig_pick = QFileDialog.getOpenFileName
+    QFileDialog.getOpenFileName = staticmethod(
+        lambda *a, **k: (os.path.join(trio_src, "1041.png"), ""))
+    url_before = win.dock.panel.view.url().toString()
+    win.dock.load_btn.click()
+    QFileDialog.getOpenFileName = _orig_pick
+    for _ in range(600):
+        app.processEvents()
+        time.sleep(0.02)
+        if win.dock.panel.view.url().toString() != url_before:
+            break
+    check("Load button picks a file and auto-syncs its siblings",
+          win.dock.panel.view.url().toString() != url_before
+          and "m=local_" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
     ov_png = os.path.join(dock_dir, "override.png")
     Image.new("RGBA", (64, 40), (10, 200, 10, 255)).save(ov_png)
