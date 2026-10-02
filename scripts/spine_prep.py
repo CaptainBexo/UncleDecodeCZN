@@ -32,6 +32,27 @@ def _premultiply(im):
     return Image.merge("RGBA", [*rgb.split(), a])
 
 
+def _is_premultiplied(im) -> bool:
+    """CZN pages ship premultiplied (no channel exceeds alpha beyond noise);
+    a straight page has clearly brighter semi-transparent pixels. Multiplying
+    an already-premultiplied page again darkens every soft edge (black fringes).
+    Transparent texels (alpha < 32) are ignored - their rgb never reaches the blend."""
+    from PIL import Image, ImageChops
+    im = im.convert("RGBA")
+    a = im.getchannel("A")
+    mask = a.point([0] * 32 + [255] * 224)      # C lookup table, not a per-pixel lambda
+    diff = ImageChops.subtract(im.convert("RGB"), Image.merge("RGB", [a, a, a]))
+    diff = ImageChops.multiply(diff, Image.merge("RGB", [mask, mask, mask]))
+    bad = sum(sum(ch.histogram()[24:]) for ch in diff.split())
+    semi = sum(a.histogram()[32:])
+    return bad < max(1000, semi * 0.005)
+
+
+def _page_ready(im):
+    """Premultiply only when the source is straight alpha."""
+    return im if _is_premultiplied(im) else _premultiply(im)
+
+
 def _rewrite_pages(text: str, rename: bool = True):
     """Page lines sit alone, unindented, right before their 'size:' line."""
     lines = text.splitlines()
@@ -77,10 +98,10 @@ def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -
     for old, new in pages:
         dst = os.path.join(out_dir, new)
         if override_pages and old in override_pages:
-            _premultiply(Image.open(override_pages[old])).save(dst)
+            _page_ready(Image.open(override_pages[old])).save(dst)
         else:
             im, _meta = decode(pack.extract(folder + old))
-            _premultiply(im).save(dst)
+            _page_ready(im).save(dst)
         written.append(new)
     anims = data.get("animations") or {}
     names = list(anims) if isinstance(anims, dict) else [a.get("name", str(a)) for a in anims]
@@ -184,7 +205,7 @@ def prepare_trio(path: str, out_dir: str) -> dict:
                 with open(src, "rb") as f:
                     im, _meta = decode(f.read())
                 new = re.sub(r"\.[A-Za-z0-9]+$", ".png", ln)
-                _premultiply(im).save(os.path.join(out_dir, new))
+                _page_ready(im).save(os.path.join(out_dir, new))
                 lines[i] = new
                 written.append(new)
             elif ln.lower().endswith((".png", ".webp")):

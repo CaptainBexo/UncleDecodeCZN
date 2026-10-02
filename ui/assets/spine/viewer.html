@@ -155,7 +155,7 @@ if (imgSrc) {
 
   function fitToDrawn() {
     // One probe render, then refit the camera to the pixels that actually got drawn.
-    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     renderer.begin();
     renderer.drawSkeleton(skeleton, true);
@@ -168,7 +168,7 @@ if (imgSrc) {
     // off the strongest pixel so the bbox lands on the real art, not that layer.
     let maxd = 0;
     for (let i = 0; i < px.length; i += 4) {
-      const d = Math.abs(px[i] - 22) + Math.abs(px[i + 1] - 22) + Math.abs(px[i + 2] - 22);
+      const d = px[i] + px[i + 1] + px[i + 2];
       if (d > maxd) maxd = d;
     }
     if (maxd < 36) return;                      // nothing meaningful drawn
@@ -178,7 +178,7 @@ if (imgSrc) {
       const row = y * w * 4;
       for (let x = 0; x < w; x++) {
         const i = row + x * 4;
-        const d = Math.abs(px[i] - 22) + Math.abs(px[i + 1] - 22) + Math.abs(px[i + 2] - 22);
+        const d = px[i] + px[i + 1] + px[i + 2];
         if (d > thr) {
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
@@ -196,7 +196,7 @@ if (imgSrc) {
     cam.position.set((wx0 + wx1) / 2, (wy0 + wy1) / 2, 0);
     cam.zoom = Math.max((wx1 - wx0) / w, (wy1 - wy0) / h) * 1.1;
     if (cam.update) cam.update();
-    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
   }
 
@@ -338,7 +338,7 @@ if (imgSrc) {
     }
     if (!skeleton) return;
     skeleton.updateWorldTransform();
-    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     renderer.begin();
     renderer.drawSkeleton(skeleton, true);

@@ -498,6 +498,17 @@ def main() -> None:
           os.path.isfile(os.path.join(trio_out, "skeleton.json"))
           and os.path.isfile(os.path.join(trio_out, "skeleton.atlas"))
           and bool(info["pages"]), str(info["pages"]))
+    from PIL import Image as _PImage, ImageDraw as _PImageDraw
+    _st = _PImage.new("RGBA", (200, 200), (0, 0, 0, 0))
+    _PImageDraw.Draw(_st).ellipse((30, 30, 170, 170), fill=(200, 30, 30, 128))
+    _o1 = spine_prep._page_ready(_st)
+    check("straight pages premultiply once", _o1.getpixel((100, 100)) == (100, 15, 15, 128),
+          str(_o1.getpixel((100, 100))))
+    _pm = _PImage.new("RGBA", (200, 200), (0, 0, 0, 0))
+    _PImageDraw.Draw(_pm).ellipse((30, 30, 170, 170), fill=(100, 15, 15, 128))
+    _o2 = spine_prep._page_ready(_pm)
+    check("premultiplied pages pass through untouched",
+          _o2.getpixel((100, 100)) == (100, 15, 15, 128), str(_o2.getpixel((100, 100))))
     skel, atlas_path = spine_prep.pick_trio(os.path.join(trio_src, "1041.png"))
     check("picking a .png syncs its .skel/.atlas siblings",
           os.path.isfile(skel) and os.path.isfile(atlas_path),
@@ -621,22 +632,51 @@ def main() -> None:
 
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
     from PySide6.QtGui import QHelpEvent
+    win._show_dock(False)               # the parked dock can cover the main toolbar
+    for _ in range(5):
+        app.processEvents()
+        time.sleep(0.02)
     menu["Mods"].click()                # back on the mods page: cursor coords must hit it
     for _ in range(3):
         app.processEvents()
     btn = win.toolbar.refresh
-    QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
-                                           btn.mapToGlobal(QPoint(5, 5))))
-    check("float tooltip shows the control tip",
-          win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip(),
+    from PySide6.QtGui import QCursor
+    QCursor.setPos(btn.mapToGlobal(QPoint(5, 5)))   # the follow timer hides a tip whose pointer is elsewhere
+    for _ in range(10):
+        app.processEvents()
+        time.sleep(0.02)
+    from widgets.float_tip import text_at as _text_at
+    _gp = btn.mapToGlobal(QPoint(5, 5))
+    print("  [d] refresh tip:", repr(_text_at(_gp)), "| widgetAt:", app.widgetAt(_gp),
+          "| btn visible:", btn.isVisible(), "| win active:", win.isActiveWindow())
+    _ok = False
+    for _ in range(6):                   # read before the 16ms poll tick can hide it again
+        QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
+                                               btn.mapToGlobal(QPoint(5, 5))))
+        app.processEvents()
+        _ok = win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip()
+        if _ok:
+            break
+        time.sleep(0.05)
+    check("float tooltip shows the control tip", _ok,
           f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
     rc = win.view.visualRect(win.view.item_model.index(0, 0))
     lp = rc.center()
-    QApplication.sendEvent(win.view.viewport(),
-                           QHelpEvent(QEvent.Type.ToolTip, lp,
-                                      win.view.viewport().mapToGlobal(lp)))
-    check("float tooltip resolves model tips on cards",
-          win._tips.popup.text() == win.view.item_model.item(0).toolTip(),
+    QCursor.setPos(win.view.viewport().mapToGlobal(lp))
+    for _ in range(10):
+        app.processEvents()
+        time.sleep(0.02)
+    _ok2 = False
+    for _ in range(6):
+        QApplication.sendEvent(win.view.viewport(),
+                               QHelpEvent(QEvent.Type.ToolTip, lp,
+                                          win.view.viewport().mapToGlobal(lp)))
+        app.processEvents()
+        _ok2 = win._tips.popup.text() == win.view.item_model.item(0).toolTip()
+        if _ok2:
+            break
+        time.sleep(0.05)
+    check("float tooltip resolves model tips on cards", _ok2,
           win._tips.popup.text().replace("\n", " | "))
     # glide: one follow tick moves part of the way toward the pointer (not a jump)
     from widgets import float_tip as ft
