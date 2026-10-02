@@ -72,13 +72,14 @@ Using it
          game file with the same path, here face/portrait/1041.sct)
        - mod pack: Mods\\AnyName\\manifest.json =
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
-  4. Preview: the eye button on a mod card opens it in the Viewer dock (right
-     side; the small eye strip at the right edge shows/hides the dock). In the
-     dock: images zoom with the wheel / pan by dragging; the path bar also
-     loads a pack model (e.g. "model/1041.scsp" or just "1041") with play,
-     timeline, speed and loop controls, or any local image / .sct file.
-     "Reload" re-reads the current file - handy right after editing a mod.
-     Preview only - nothing is written to the game.
+  4. Preview: the "Viewer" button at the bottom-right opens the Viewer as a
+     separate window (drag it by its header, resize from the corner, the X
+     hides it again). The eye button on a mod card loads that mod's image
+     straight into it; the path bar also loads a pack model (e.g.
+     "model/1041.scsp" or just "1041") with play, timeline, speed and loop
+     controls, or any local image / .sct file. "Reload" re-reads the current
+     file - handy right after editing a mod. Preview only - nothing is
+     written to the game.
   5. CLOSE THE GAME before applying (the tool refuses to write while it runs).
   6. Press "Apply mods". A new mod shows a "Pending" chip until you do.
   7. Launch the game through STOVE as usual (the game only starts through

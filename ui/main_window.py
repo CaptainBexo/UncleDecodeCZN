@@ -25,7 +25,7 @@ from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
 from widgets.mod_delegate import ModListView
 from widgets.sidebar import Sidebar
-from widgets.viewer_dock import ViewerDock, ViewerStrip
+from widgets.viewer_dock import ViewerDock, ViewerOpenButton
 from widgets import float_tip
 from widgets.title_bar import DragRow, WindowButtons
 
@@ -40,8 +40,8 @@ class MainWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self.setWindowTitle("CZN MM/MI - Uncle's CZN Mod Manager / Mod Importer")
-        self.setMinimumSize(1200, 600)      # 240 sidebar + 26 strip + 480 dock + content min
-        self.resize(1200, 750)
+        self.setMinimumSize(880, 560)
+        self.resize(1100, 700)
         # The window itself holds the startup focus: otherwise Qt focuses the first
         # tab-chain button when the window is shown and lights its focus ring. The
         # ring is reserved for Tab navigation (all buttons use Qt.TabFocus).
@@ -111,13 +111,12 @@ class MainWindow(QWidget):
         cv.addWidget(self.stack, 1)
         self.btns = WindowButtons(self)     # overlay pinned to the window's top-right corner
         root.addWidget(main_col, 1)
-        # right-side Viewer dock (hidden until a preview is requested)
-        self.strip = ViewerStrip(self)
-        root.addWidget(self.strip)
+        # detached Viewer window (hidden until requested) + its reopen button
         self.dock = ViewerDock(self._mods_dir, self)
-        root.addWidget(self.dock)
         self.dock.hide()
-        self.btns.raise_()                      # buttons float above the strip / dock
+        self.viewer_btn = ViewerOpenButton(main_col)
+        self.viewer_btn.raise_()
+        self.btns.raise_()
 
         # wiring
         self.tab_row.tabChanged.connect(self._set_tab)
@@ -130,7 +129,7 @@ class MainWindow(QWidget):
         self.side.pageChanged.connect(self._set_page)
         self.view.chipClicked.connect(self._toggle_mod)
         self.view.previewClicked.connect(self._preview_mod)
-        self.strip.toggled.connect(self._show_dock)
+        self.viewer_btn.clicked.connect(lambda: self._show_dock(not self.dock.isVisible()))
         self.dock.close_btn.clicked.connect(lambda: self._show_dock(False))
         self.view.filesDropped.connect(self._add_paths)
         self.empty.filesDropped.connect(self._add_paths)
@@ -421,8 +420,18 @@ class MainWindow(QWidget):
     # ---------- viewer dock ----------
 
     def _show_dock(self, on: bool) -> None:
+        if on and not self.dock._placed:        # first open: park it beside the main window
+            self.dock._placed = True
+            scr = (QApplication.screenAt(self.frameGeometry().center())
+                   or QApplication.primaryScreen()).availableGeometry()
+            x = self.x() + self.width() + 10
+            if x + self.dock.width() > scr.right():
+                x = max(scr.left(), self.x() + self.width() - self.dock.width() - 60)
+            self.dock.move(x, max(scr.top(), self.y()))
         self.dock.setVisible(on)
-        self.strip.btn.setChecked(on)
+        if on:
+            self.dock.raise_()
+            self.dock.activateWindow()
 
     def _preview_mod(self, row: int) -> None:
         if 0 <= row < len(self.view.mods):

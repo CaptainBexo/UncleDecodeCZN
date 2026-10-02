@@ -398,12 +398,18 @@ def main() -> None:
     menu["Mods"].click()
     for _ in range(3):
         app.processEvents()
-    check("viewer dock starts hidden, strip visible",
-          not win.dock.isVisible() and win.strip.isVisible())
-    win.strip.btn.click()
+    check("viewer window starts hidden; reopen button bottom-right",
+          not win.dock.isVisible() and win.dock.isWindow() and win.viewer_btn.isVisible()
+          and abs(win.viewer_btn.mapTo(win, QPoint(win.viewer_btn.width(), 0)).x()
+                  - (win.width() - 18)) <= 2
+          and abs(win.viewer_btn.mapTo(win, QPoint(0, win.viewer_btn.height())).y()
+                  - (win.height() - 14)) <= 2,
+          str(win.viewer_btn.geometry()))
+    win.viewer_btn.click()
     for _ in range(3):
         app.processEvents()
-    check("the strip toggles the dock open", win.dock.isVisible())
+    check("the reopen button shows the detached viewer window",
+          win.dock.isVisible() and win.dock.isWindow())
     check("dock has a path bar plus Load and Reload",
           win.dock.path.placeholderText().startswith("Mod name")
           and win.dock.load_btn.text() == "Load" and win.dock.reload_btn.text() == "Reload")

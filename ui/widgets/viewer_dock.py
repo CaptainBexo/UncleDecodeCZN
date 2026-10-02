@@ -1,9 +1,12 @@
-"""Right-side Viewer dock: a media-player preview panel.
+"""Viewer: a detached media-player preview window.
 
-The dock shows one thing at a time in the WebGL page (viewer.html):
-  - a mod's image (opened from the eye icon on a mod card),
+The viewer is its own frameless top-level window (drag by its header, resize by
+the bottom-right grip, X collapses it).  The main window keeps a small "Viewer"
+button at the bottom-right of the content area to bring it back.
+It shows one thing at a time in the WebGL page (viewer.html):
+  - a mod's image (opened from the eye button on a mod card),
   - a pack Spine model ('model/1041.scsp' or any .scsp substring),
-  - a local image file (png/webp/jpg/bmp) or a .sct texture (decoded first).
+  - a local image file (png/webp/jpg/bmp/gif) or a .sct texture (decoded first).
 The path bar + Load/Reload drive it; Reload re-runs the last load, so an image
 edited in Photoshop shows its new content on one click.
 """
@@ -14,82 +17,86 @@ import os
 import shutil
 import sys
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QToolButton, QVBoxLayout, QWidget)
+                               QSizeGrip, QToolButton, QVBoxLayout, QWidget)
 
 import data
 import theme
 from widgets.spine_panel import SpinePanel, SpinePrep
+from widgets.title_bar import DragRow
 
 SCRIPTS = os.path.join(data.ROOT, "scripts")
 if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
 IMAGE_EXT = (".png", ".webp", ".jpg", ".jpeg", ".bmp", ".gif")
-DOCK_W = 480
 
 
-class ViewerStrip(QWidget):
-    """Slim right-edge handle (eye icon) that shows/hides the dock."""
+class ViewerOpenButton(QToolButton):
+    """Eye button pinned to the bottom-right corner of the main content area."""
 
-    toggled = Signal(bool)
-
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
-        self.setObjectName("viewerStrip")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedWidth(26)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(3, 78, 3, 0)
-        lay.setSpacing(0)
-        self.btn = QToolButton(self)
-        self.btn.setObjectName("viewerStripBtn")
-        self.btn.setCheckable(True)
-        self.btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.btn.setFixedSize(20, 34)
-        self.btn.setIcon(theme.icon("eye", 16, theme.TEXT_MUTED, active=theme.TEXT_STRONG))
-        self.btn.setToolTip("Viewer: preview a mod or a model beside the list")
-        self.btn.clicked.connect(lambda: self.toggled.emit(self.btn.isChecked()))
-        lay.addWidget(self.btn)
-        lay.addStretch(1)
+        self.setObjectName("viewerOpenBtn")
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setIcon(theme.icon("eye", 16, theme.TEXT_MUTED, active=theme.TEXT_STRONG))
+        self.setText("Viewer")
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setFixedSize(96, 32)
+        self.setToolTip("Open the Viewer window (preview a mod image or a game model)")
+        parent.installEventFilter(self)
+        self._place(parent)
+
+    def _place(self, parent: QWidget | None = None) -> None:
+        p = parent if parent is not None else self.parentWidget()
+        if p is not None:
+            self.move(p.width() - self.width() - 18, p.height() - self.height() - 14)
+
+    def eventFilter(self, obj, ev) -> bool:
+        if ev.type() == QEvent.Type.Resize and obj is self.parentWidget():
+            self._place(obj)
+        return False
 
 
 class ViewerDock(QWidget):
-    """Preview panel: header + path bar (Load / Reload) + the WebGL viewer."""
+    """The detached viewer window: header + path bar (Load / Reload) + the player."""
 
     def __init__(self, mods_dir: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         self.setObjectName("viewerDock")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedWidth(DOCK_W)
+        self.setWindowTitle("Viewer - CZN MM/MI")
+        self.resize(540, 680)
+        self.setMinimumSize(420, 480)
         self._mods_dir = mods_dir
         self._last: tuple | None = None       # ("image", path) | ("spine", pack_path)
         self._prep = None
         self._n = 0
+        self._placed = False                  # first open positions it next to the main window
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(14, 46, 14, 12)      # 46 = the window buttons overlay height
+        lay.setContentsMargins(14, 0, 14, 12)
         lay.setSpacing(0)
 
-        head = QHBoxLayout()
-        head.setContentsMargins(0, 0, 0, 0)
-        title = QLabel("Viewer", self)
+        head = DragRow(self)                  # drag handle for the frameless window
+        head.setFixedHeight(44)
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(0, 0, 0, 0)
+        title = QLabel("Viewer", head)
         title.setObjectName("pageTitle")
-        head.addWidget(title)
-        head.addStretch(1)
-        self.close_btn = QToolButton(self)
+        hl.addWidget(title)
+        hl.addStretch(1)
+        self.close_btn = QToolButton(head)
         self.close_btn.setObjectName("dockClose")
         self.close_btn.setIcon(theme.icon("close", 14, theme.TEXT_MUTED, active=theme.TEXT_STRONG))
-        self.close_btn.setToolTip("Hide the viewer (the eye on the right edge brings it back)")
+        self.close_btn.setToolTip("Hide the viewer (the Viewer button in the main window brings it back)")
         self.close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.close_btn.setFixedSize(24, 24)
-        head.addWidget(self.close_btn)
-        bar = QWidget(self)
-        bar.setFixedHeight(theme.HEADER_H)
-        bar.setLayout(head)
-        lay.addWidget(bar)
-        lay.addSpacing(8)
+        hl.addWidget(self.close_btn)
+        lay.addWidget(head)
+        lay.addSpacing(6)
 
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
@@ -126,10 +133,17 @@ class ViewerDock(QWidget):
         self.panel = SpinePanel(data.SPINE_CACHE, self)
         lay.addWidget(self.panel, 1)
 
+        self._grip = QSizeGrip(self)          # frameless windows need a resize handle
+        self._grip.setFixedSize(16, 16)
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._grip.move(self.width() - 16, self.height() - 16)
+
     # ---------- loads ----------
 
     def show_mod(self, mod: data.Mod) -> None:
-        """Preview a mod's own image (the eye icon on a mod card)."""
+        """Preview a mod's own image (the eye button on a mod card)."""
         if mod.banner and os.path.isfile(mod.banner):
             self.load_image(mod.banner, mod.name)
         else:
