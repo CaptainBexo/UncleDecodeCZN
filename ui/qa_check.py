@@ -280,6 +280,48 @@ def main() -> None:
           str(labels[:4]))
     check("Browse button hidden while the game is found",
           win._game_browse is not None and not win._game_browse.isVisible())
+    # ---------- Char ID page ----------
+    check("sidebar menu lists Mods/Settings/Char ID",
+          [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID"],
+          str([b.text() for b in win.side._menu_items]))
+    menu["Char ID"].click()
+    for _ in range(8):
+        app.processEvents()
+    rows = win._char_rows or []
+    check("Char ID is a real page below Settings",
+          win.stack.currentIndex() == 2 and win.char_page.isVisible(), str(win.stack.currentIndex()))
+    check("catalog has >=150 ids", len(rows) >= 150, str(len(rows)))
+    by_id = {r["id"]: r for r in rows}
+    check("1041 = Renoa (playable)", by_id.get(1041, {}).get("name") == "Renoa"
+          and by_id.get(1041, {}).get("group") == "playable")
+    check("groups are Playable/Support/Other",
+          {r["label"] for r in rows} == {"Playable", "Support", "Other"},
+          str({r["label"] for r in rows}))
+    check("char chips = Playable/Support/Other",
+          [b.text() for b in win.char_chips.buttons] == ["Playable", "Support", "Other"],
+          str([b.text() for b in win.char_chips.buttons]))
+    win.char_search.setText("lenore")
+    for _ in range(3):
+        app.processEvents()
+    check("search 'lenore' finds exactly 1041",
+          [r["id"] for r in win._char_shown] == [1041], str([r["id"] for r in win._char_shown]))
+    win.char_search.setText("")
+    for _ in range(2):
+        app.processEvents()
+    {b.text(): b for b in win.char_chips.buttons}["Support"].click()
+    for _ in range(3):
+        app.processEvents()
+    supp_n = sum(1 for r in rows if r["group"] == "supporter")
+    check("Support chip filters to supporters only",
+          len(win._char_shown) == supp_n and all(r["group"] == "supporter" for r in win._char_shown),
+          f"{len(win._char_shown)}/{supp_n}")
+    {b.text(): b for b in win.char_chips.buttons}["Support"].click()
+    for _ in range(3):
+        app.processEvents()
+    check("re-clicking the chip clears the group filter", len(win._char_shown) == len(rows))
+    check("char grid cell >= min width",
+          win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,
+          str(win.char_grid.gridSize()))
     menu["Mods"].click()
     for _ in range(3):
         app.processEvents()

@@ -14,12 +14,13 @@ import threading
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
-                               QHBoxLayout, QLabel, QMessageBox, QPushButton,
+                               QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 import data
 import theme
-from widgets.chip_bar import InfoRow, TabRow, Toolbar
+from widgets.char_grid import CharGrid, ThumbLoader
+from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
 from widgets.mod_delegate import ModListView
 from widgets.sidebar import Sidebar
@@ -54,6 +55,8 @@ class MainWindow(QWidget):
         self._disabled: list[data.Mod] = []
         self._busy = False
         self._q: queue.Queue = queue.Queue()
+        self._char_rows: list[dict] | None = None     # Char ID tab, loaded on first open
+        self._char_shown: list[dict] = []
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -97,6 +100,10 @@ class MainWindow(QWidget):
         self.stack.addWidget(content)
         self.settings_page = self._build_settings_page(self.stack)
         self.stack.addWidget(self.settings_page)
+        self.char_page = self._build_char_page(self.stack)
+        self.stack.addWidget(self.char_page)
+        self.char_loader = ThumbLoader(self)
+        self.char_loader.loaded.connect(self._char_thumb_ready)
         cv.addWidget(self.stack, 1)
         self.btns = WindowButtons(main_col)     # overlay pinned to the top-right corner
         root.addWidget(main_col, 1)
@@ -242,7 +249,107 @@ class MainWindow(QWidget):
                 "Pick the folder that contains bin\\ (bin\\appdata\\cznlive\\gameres\\manifest.ssra).")
 
     def _set_page(self, name: str) -> None:
-        self.stack.setCurrentIndex(0 if name == "Mods" else 1)
+        if name == "Char ID":
+            self._ensure_chars()
+        self.stack.setCurrentIndex({"Mods": 0, "Settings": 1, "Char ID": 2}.get(name, 0))
+
+    def _build_char_page(self, parent: QWidget) -> QWidget:
+        """Character dex: portrait grid with a search box and group chips."""
+        page = QWidget(parent)
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(theme.PAD_MAIN, 0, theme.PAD_MAIN, 10)
+        lay.setSpacing(0)
+
+        head = DragRow(page)
+        head.setFixedHeight(theme.HEADER_H)     # same line as the app name / tabs
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(0, 0, 0, 0)
+        title = QLabel("Char ID", head)
+        title.setObjectName("pageTitle")
+        hl.addWidget(title)
+        hl.addStretch(1)
+        lay.addWidget(head)
+        sep = QFrame(page)
+        sep.setObjectName("sideSep")
+        sep.setFixedHeight(1)
+        lay.addWidget(sep)
+        lay.addSpacing(20)
+
+        row = QWidget(page)
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(16)
+        self.char_search = QLineEdit(row)
+        self.char_search.setObjectName("searchBox")
+        self.char_search.setFixedSize(300, 36)
+        self.char_search.setPlaceholderText("Search name or ID...")
+        self.char_search.setClearButtonEnabled(True)
+        self.char_search.addAction(theme.icon("search", 16, theme.TEXT_MUTED),
+                                   QLineEdit.ActionPosition.LeadingPosition)
+        self.char_search.textChanged.connect(self._char_filter)
+        rl.addWidget(self.char_search)
+        self.char_chips = FilterChips(row)
+        self.char_chips.set_labels(["Playable", "Support", "Other"])
+        self.char_chips.catChanged.connect(self._char_filter)
+        rl.addWidget(self.char_chips, 1)
+        lay.addWidget(row)
+        lay.addSpacing(12)
+
+        self.char_count = QLabel("Total 0", page)
+        self.char_count.setObjectName("totalLbl")
+        self.char_hint = QLabel("", page)
+        self.char_hint.setObjectName("statusLine")
+        self.char_hint.hide()
+        info = QHBoxLayout()
+        info.setContentsMargins(0, 0, 0, 0)
+        info.setSpacing(12)
+        info.addWidget(self.char_count)
+        info.addWidget(self.char_hint, 1)
+        lay.addLayout(info)
+        lay.addSpacing(12)
+
+        self.char_grid = CharGrid(page)
+        lay.addWidget(self.char_grid, 1)
+        return page
+
+    def _ensure_chars(self) -> None:
+        """Load the char catalog (once) and kick off thumbnail rendering."""
+        if self._char_rows is None:
+            try:
+                from char_catalog import load
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+                try:
+                    self._char_rows = load()
+                finally:
+                    QApplication.restoreOverrideCursor()
+            except Exception as e:
+                self._char_rows = []
+                self.char_hint.setText(f"Character list unavailable ({type(e).__name__})")
+                self.char_hint.show()
+            if self._char_rows and not data.game_root():
+                self.char_hint.setText("Game folder not found - portraits unavailable "
+                                       "(Settings > Browse...)")
+                self.char_hint.show()
+        self.char_loader.start(self._char_rows)
+        self._char_filter()
+
+    def _char_filter(self) -> None:
+        if self._char_rows is None:
+            return
+        from char_catalog import match
+        grp = self.char_chips.checked()          # "All" when no chip is active
+        q = self.char_search.text()
+        self._char_shown = [r for r in self._char_rows
+                            if (grp == "All" or r["label"] == grp) and match(r, q)]
+        self.char_grid.set_rows(self._char_shown)
+        self.char_count.setText(f"Total {len(self._char_shown)}")
+
+    def _char_thumb_ready(self, pid: int) -> None:
+        self.char_grid.thumb_ready(pid)
+
+    def closeEvent(self, e) -> None:
+        self.char_loader.stop()
+        super().closeEvent(e)
 
     def _build_settings_page(self, parent: QWidget) -> QWidget:
         """A real settings page in the content column (no popup)."""

@@ -56,7 +56,11 @@ First start
 Using it
   1. Double-click the exe. A "Mods" folder, "backup" folder and settings are
      created next to the exe on first use.
-  2. Put mods into the Mods folder (the "Open folder" button opens it):
+  2. Browse the game's characters in the "Char ID" tab (sidebar): every
+     character with its portrait, name and ID; search by name/ID and filter
+     by Playable / Support / Other. Portraits render on first open (a few
+     seconds) and are cached next to the exe.
+  3. Put mods into the Mods folder (the "Open folder" button opens it):
        - self-target png: any .png carrying a "czn-target" tag names the game
          file it replaces - drop it anywhere, name it anything (PNGs exported
          from the asset database are already tagged; re-tag after editing with
@@ -65,9 +69,9 @@ Using it
          game file with the same path, here face/portrait/1041.sct)
        - mod pack: Mods\\AnyName\\manifest.json =
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
-  3. CLOSE THE GAME before applying (the tool refuses to write while it runs).
-  4. Press "Apply mods". A new mod shows a "Pending" chip until you do.
-  5. Launch the game through STOVE as usual (the game only starts through
+  4. CLOSE THE GAME before applying (the tool refuses to write while it runs).
+  5. Press "Apply mods". A new mod shows a "Pending" chip until you do.
+  6. Launch the game through STOVE as usual (the game only starts through
      STOVE - a direct launch shows "please run through the launcher").
 
 Undo / switching mods off

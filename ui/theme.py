@@ -135,6 +135,10 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 #setKey {{ color: {TEXT_TOTAL}; font-size: {F_CHIP}px; }}
 #setVal {{ color: {TEXT}; font-size: {F_CHIP}px; }}
 
+#searchBox {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: {R_MENU}px;
+              color: {TEXT}; font-size: {F_CHIP}px; padding: 0 8px; }}
+#searchBox:focus {{ border-color: {ACCENT}; }}
+
 #emptyTitle {{ font-size: {F_CARD}px; font-weight: 600; color: {TEXT_STRONG}; }}
 #emptyDesc {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
 
