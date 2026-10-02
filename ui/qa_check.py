@@ -377,11 +377,10 @@ def main() -> None:
     ctip = win.char_grid.item_model.item(0).toolTip()
     check("tooltip: char card has name - id + export hint",
           " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))
+    from widgets.mod_delegate import STATUS_TIPS as _STIPS
     mtip = win.view.item_model.item(0).toolTip()
-    check("tooltip: mod card has name + action hint",
-          mtip.startswith(win.view.mods[0].name)
-          and len(mtip) > len(win.view.mods[0].name) + 4
-          and ("chip" in mtip or "Apply" in mtip), mtip.replace("\n", " | "))
+    check("tooltip: mod card shows only the status action",
+          mtip == _STIPS[win.view.mods[0].status] and "face/" not in mtip, mtip)
 
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
     from PySide6.QtGui import QHelpEvent

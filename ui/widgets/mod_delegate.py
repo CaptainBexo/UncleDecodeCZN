@@ -317,7 +317,7 @@ class ModListView(QListView):
         for m in mods:
             item = QStandardItem(m.name)
             item.setEditable(False)
-            item.setToolTip("\n".join(x for x in (m.name, m.desc, STATUS_TIPS[m.status]) if x))
+            item.setToolTip(STATUS_TIPS[m.status])   # status action only - no file paths
             self.item_model.appendRow(item)
         self.relayout()
 
