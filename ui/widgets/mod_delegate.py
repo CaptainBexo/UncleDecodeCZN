@@ -1,10 +1,13 @@
 """Card grid: one delegate paints every card; the view is a plain QListView (IconMode).
 
-No QWidget per card - the delegate caches scaled, top-rounded banner pixmaps (built from
-the mod's own PNG) and paints straight onto the viewport. The status chip drawn in the
-footer is clickable: the view hit-tests it and emits chipClicked(row).
+No QWidget per card - the delegate caches scaled, top-rounded banner pixmaps (the
+char's portrait thumb by default, the mod's own PNG while hovered) and paints straight
+onto the viewport. The status chip drawn near the bottom is clickable: the view
+hit-tests it and emits chipClicked(row).
 """
 from __future__ import annotations
+
+import os
 
 from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QModelIndex, QRectF,
                             QSize, Qt, QVariantAnimation, Signal)
@@ -17,7 +20,7 @@ import theme
 from widgets.empty_state import url_paths
 
 BANNER_RATIO = 9 / 16
-BODY_H = 150          # title(2 lines) + desc(2 lines) + footer + paddings under the banner
+BODY_H = 134          # title(2 lines) + path(2 lines) + status chip row + paddings
 HOVER_MS = 130        # spec: 120-150 ms hover transition
 
 STATUS_COLORS = {
@@ -73,8 +76,6 @@ class CardDelegate(QStyledItemDelegate):
         self.f_small = QFont(base)
         self.f_small.setPixelSize(theme.F_SMALL)
         self.f_small.setWeight(QFont.Weight.DemiBold)
-        self.f_small_plain = QFont(base)
-        self.f_small_plain.setPixelSize(theme.F_SMALL)
 
     # ---- hover fade (QVariantAnimation for the self-painted part) ----
 
@@ -102,10 +103,32 @@ class CardDelegate(QStyledItemDelegate):
             return 1.0 - self._v
         return 0.0
 
-    # ---- cached banner pixmap (mod PNG cover-cropped; gradient fallback) ----
+    # ---- cached banner pixmap: char portrait by default, the mod's own PNG on hover ----
 
-    def _thumb(self, w: int, h: int, mod: data.Mod, dpr: float) -> QPixmap:
-        key = (w, h, mod.banner or f"hue{mod.hue}", dpr)
+    def _src_tag(self, mod: data.Mod, hover: bool) -> str:
+        """Cache-key tag for the cover source (so two mods sharing a banner, or one
+        with a char thumb and one without, never collide in the pixmap cache)."""
+        if not hover:
+            pid = data.char_id_in(mod.desc)
+            if pid and os.path.exists(os.path.join(data.CHAR_THUMB_DIR, f"{pid}.png")):
+                return f"char:{pid}"
+        return mod.banner or f"hue{mod.hue}"
+
+    def _source(self, mod: data.Mod, hover: bool) -> QPixmap:
+        """Default cover = the char portrait thumb (same image as the Char ID tab);
+        sweeping the card flips it to the mod's own image."""
+        tag = self._src_tag(mod, hover)
+        if tag.startswith("char:"):
+            pm = QPixmap(os.path.join(data.CHAR_THUMB_DIR, f"{tag[5:]}.png"))
+            if not pm.isNull():
+                return pm
+        return QPixmap(mod.banner) if mod.banner else QPixmap()
+
+    def clear_thumbs(self) -> None:
+        self._thumbs.clear()
+
+    def _thumb(self, w: int, h: int, mod: data.Mod, dpr: float, hover: bool = False) -> QPixmap:
+        key = (w, h, self._src_tag(mod, hover), dpr)
         pm = self._thumbs.get(key)
         if pm is not None:
             return pm
@@ -120,7 +143,7 @@ class CardDelegate(QStyledItemDelegate):
         path.addRoundedRect(QRectF(0, 0, w, h), theme.R_CARD, theme.R_CARD)
         path.addRect(QRectF(0, theme.R_CARD, w, h - theme.R_CARD))
         p.setClipPath(path)
-        src = QPixmap(mod.banner) if mod.banner else QPixmap()
+        src = self._source(mod, hover)
         if not src.isNull():
             scaled = src.scaled(pm.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                                 Qt.TransformationMode.SmoothTransformation)
@@ -161,10 +184,16 @@ class CardDelegate(QStyledItemDelegate):
         p.setBrush(blend(theme.BG_CARD, theme.BG_CARD_HOVER, t))
         p.drawRoundedRect(card, theme.R_CARD, theme.R_CARD)
 
-        # banner (16:9, top corners follow the card radius)
+        # banner (16:9, top corners follow the card radius); hovering cross-fades
+        # from the char portrait to the mod's own image
         bh = round(w * BANNER_RATIO)
         banner = QRectF(card.x(), card.y(), w, bh)
-        p.drawPixmap(banner.toRect(), self._thumb(w, bh, m, self._view.devicePixelRatioF()))
+        dpr = self._view.devicePixelRatioF()
+        p.drawPixmap(banner.toRect(), self._thumb(w, bh, m, dpr, hover=False))
+        if t > 0.001:
+            p.setOpacity(t)
+            p.drawPixmap(banner.toRect(), self._thumb(w, bh, m, dpr, hover=True))
+            p.setOpacity(1.0)
 
         fm_small = QFontMetrics(self.f_small)
 
@@ -190,7 +219,7 @@ class CardDelegate(QStyledItemDelegate):
         # title (16px bold white, max 2 lines)
         fm_title = QFontMetrics(self.f_title)
         l1, l2 = wrap_two(fm_title, m.name, int(w) - 24)
-        ty = banner.bottom() + 18
+        ty = banner.bottom() + 14
         p.setFont(self.f_title)
         p.setPen(QColor(theme.TEXT_STRONG))
         p.drawText(QRectF(card.x() + 12, ty, w - 24, fm_title.height()),
@@ -211,24 +240,10 @@ class CardDelegate(QStyledItemDelegate):
             p.drawText(QRectF(card.x() + 12, dy + fm_desc.height(), w - 24, fm_desc.height()),
                        Qt.AlignmentFlag.AlignLeft, d2)
 
-        # footer: avatar letter + kind (left), status chip (right, clickable)
-        fh = 24
-        fy = card.bottom() - 14 - fh
-        av = QRectF(card.x() + 12, fy, fh, fh)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor.fromHsv(m.hue, 150, 210))
-        p.drawEllipse(av)
-        p.setFont(self.f_small)
-        p.setPen(QColor(theme.TEXT_STRONG))
-        p.drawText(av, Qt.AlignmentFlag.AlignCenter, m.name[0].upper())
-        p.setFont(self.f_small_plain)
-        p.setPen(QColor(theme.TEXT_MUTED))
-        p.drawText(QRectF(av.right() + 8, fy, w - fh - 24 - 8 - 96, fh),
-                   Qt.AlignmentFlag.AlignVCenter, m.kind)
-
+        # status chip (bottom-right, clickable)
         label = data.STATUS_TXT[m.status]
         cw = fm_small.horizontalAdvance(label) + 22
-        crect = QRectF(card.right() - 12 - cw, fy + 1, cw, 22)
+        crect = QRectF(card.right() - 12 - cw, card.bottom() - 10 - 22, cw, 22)
         self.chip_hit[idx.row()] = crect
         bg, fg = STATUS_COLORS[m.status]
         p.setBrush(QColor(bg))
@@ -287,6 +302,7 @@ class ModListView(QListView):
         """Replace the card list (title role only; the delegate paints the rest)."""
         self.mods = mods
         self.card_delegate.chip_hit.clear()
+        self.card_delegate.clear_thumbs()
         self.card_delegate.set_hover(-1)
         self.item_model.clear()
         for m in mods:

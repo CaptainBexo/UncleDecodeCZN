@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -27,6 +28,7 @@ import cznmod  # noqa: E402
 IMG_EXT = cznmod.IMG_EXT
 DISABLED_DIR = "_disabled"
 DEFAULT_MODS = cznmod.MODS
+CHAR_THUMB_DIR = os.path.join(APP, "cache", "char_thumbs")   # shared with the Char ID tab
 
 STATUS_TXT = {"ok": "Enabled", "pending": "Pending", "error": "Failed", "off": "Disabled"}
 _WORST = {"error": 0, "pending": 1, "ok": 2}
@@ -142,12 +144,45 @@ def _pack(folder: str, rel: str, state: dict, disabled: bool) -> Mod | None:
                banner=banner, files=tuple(keys), disabled=disabled)
 
 
+_CHAR_NAMES: dict[int, str] = {}
+_CHAR_TRIED: list = []
+
+
+def char_names() -> dict[int, str]:
+    """id -> name from the shared char catalog (lazy; cached for the process)."""
+    if not _CHAR_TRIED:
+        _CHAR_TRIED.append(1)
+        try:
+            from char_catalog import load
+            _CHAR_NAMES.update({r["id"]: r["name"] for r in load() if r["name"]})
+        except Exception:
+            pass
+    return _CHAR_NAMES
+
+
+def char_id_in(target: str) -> int | None:
+    """First number in a resolved pack path that is a known char id, else None."""
+    names = char_names()
+    for d in re.findall(r"\d+", target or ""):
+        if int(d) in names:
+            return int(d)
+    return None
+
+
+def _loose_title(rel: str, target: str) -> str:
+    """Card title for a loose image: "CharName - CharID - file"; file name alone
+    when the target names no known character."""
+    pid = char_id_in(target)
+    return f"{_CHAR_NAMES[pid]} - {pid} - {rel}" if pid else rel
+
+
 def _loose(path: str, rel: str, state: dict, disabled: bool) -> Mod:
     # same rule as cznmod.mod_targets: tag wins, then path mirror, then a
     # file-name match (editors strip the tag - the name still carries meaning)
     target = cznmod.resolve_target(rel, path)
     newest = os.path.getmtime(path)
-    return Mod(key=rel, action_name=rel, name=rel, desc=target, kind="loose image",
+    return Mod(key=rel, action_name=rel, name=_loose_title(rel, target), desc=target,
+               kind="loose image",
                cat=_cat_for([target]), meta="1 image", date=_date(newest), mtime=newest,
                hue=_hue(rel), status="off" if disabled else _status(rel, path, state),
                banner=path, files=(rel,), disabled=disabled)

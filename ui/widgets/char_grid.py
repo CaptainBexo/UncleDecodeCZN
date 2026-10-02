@@ -20,7 +20,7 @@ import data                       # noqa: F401  (importing it puts scripts/ on s
 import theme
 from widgets.mod_delegate import blend
 
-THUMB_CACHE = os.path.join(data.APP, "cache", "char_thumbs")
+THUMB_CACHE = data.CHAR_THUMB_DIR
 THUMB_H = 300                     # cached png height (half crops are 260x460)
 BODY_H = 58                       # name + id under the image
 CARD_MIN_W = 150

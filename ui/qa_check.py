@@ -183,6 +183,40 @@ def main() -> None:
     gs2 = win.view.gridSize()
     row2 = (win.view.width() - theme.SCROLLBAR_W - 2 + theme.GRID_GAP) // gs2.width()
     check("grid 1100x700: 3 cards per row", row2 == 3, f"cell {gs2.width()}x{gs2.height()}")
+
+    # card cover + title: char portrait thumb by default ("name - id - file" title),
+    # the mod's own image while the card is hovered
+    cats = data.char_names()
+    if cats:
+        pid = 1017 if 1017 in cats else next(iter(cats))
+        ttl = data._loose_title(f"{pid}.png", f"face/portrait/{pid}.sct")
+        check("loose title carries char name - id - file",
+              ttl == f"{cats[pid]} - {pid} - {pid}.png", ttl)
+        check("title falls back to the file name without a char in the target",
+              data._loose_title("x.png", "img/btn_dark_exit.sct") == "x.png"
+              and data._loose_title("Delta.png", "Delta.png") == "Delta.png",
+              data._loose_title("Delta.png", "Delta.png"))
+        tpath = os.path.join(data.CHAR_THUMB_DIR, f"{pid}.png")
+        if os.path.exists(tpath):
+            fake = data.Mod(key="x", action_name="x", name="x",
+                            desc=f"face/portrait/{pid}.sct", kind="loose image",
+                            cat="Character", meta="1 image", date="01.01", mtime=0.0,
+                            hue=0, status="pending", banner=os.path.join(MODS, "Beta.png"))
+            d = win.view.card_delegate
+            check("card cover: char portrait by default, mod image on hover",
+                  d._thumb(160, 90, fake, 1.0, hover=False).toImage()
+                  != d._thumb(160, 90, fake, 1.0, hover=True).toImage(), f"id {pid}")
+            nochar = data.Mod(key="y", action_name="y", name="y", desc="img/btn_dark_exit.sct",
+                              kind="loose image", cat="UI", meta="1 image", date="01.01",
+                              mtime=0.0, hue=0, status="pending",
+                              banner=os.path.join(MODS, "Beta.png"))
+            check("card cover falls back to the mod image when no char thumb",
+                  d._thumb(160, 90, nochar, 1.0, hover=False).toImage()
+                  == d._thumb(160, 90, nochar, 1.0, hover=True).toImage(), "fallback differs")
+        else:
+            print("  [i] char thumb cache empty - cover pixmap checks skipped")
+    else:
+        print("  [i] char catalog unavailable - title/cover checks skipped")
     win.resize(1400, 850)
     for _ in range(4):
         app.processEvents()
