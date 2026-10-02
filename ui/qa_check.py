@@ -14,6 +14,7 @@ import os
 import shutil
 import sys
 import tempfile
+import urllib.request
 
 from PIL import Image
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
@@ -315,8 +316,8 @@ def main() -> None:
     check("Browse button hidden while the game is found",
           win._game_browse is not None and not win._game_browse.isVisible())
     # ---------- Char ID page ----------
-    check("sidebar menu lists Mods/Settings/Char ID",
-          [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID"],
+    check("sidebar menu lists Mods/Settings/Char ID/Viewer",
+          [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID", "Viewer"],
           str([b.text() for b in win.side._menu_items]))
     menu["Char ID"].click()
     for _ in range(8):
@@ -365,6 +366,34 @@ def main() -> None:
     per_row = (win.char_grid.width() - theme.SCROLLBAR_W - 2 + theme.GRID_GAP) // gs6.width()
     check("fixed 6 columns: exactly 6 per row", per_row == 6,
           f"cell {gs6.width()} per_row {per_row}")
+
+    # ---------- Viewer page (Spine) ----------
+    menu["Viewer"].click()
+    for _ in range(8):
+        app.processEvents()
+    check("Viewer is a real page below Char ID",
+          win.stack.currentIndex() == 3 and win.viewer_page is not None and win.viewer_page.isVisible(),
+          str(win.stack.currentIndex()))
+    check("viewer lists every .scsp model", len(data.spine_files()) > 15000, str(len(data.spine_files())))
+    win.spine_search.setText("1041")
+    for _ in range(3):
+        app.processEvents()
+    items = [win.spine_list.item(i).text() for i in range(win.spine_list.count())]
+    check("spine search '1041' finds model/1041.scsp", "model/1041.scsp" in items, str(items[:5]))
+    check("spine search shows a match count", "match" in win.spine_hint.text(), win.spine_hint.text())
+    win.spine_search.setText("")
+    for _ in range(2):
+        app.processEvents()
+    check("clearing the spine search hides the list",
+          win.spine_list.count() == 0 and "Type to find" in win.spine_hint.text(),
+          win.spine_hint.text())
+    import spine_serve
+    srv_dir = tempfile.mkdtemp(prefix="czn_qa_srv_")
+    with open(os.path.join(srv_dir, "probe.txt"), "w", encoding="utf-8") as f:
+        f.write("spine-ok")
+    base = spine_serve.ensure(srv_dir)
+    got = urllib.request.urlopen(base + "/probe.txt", timeout=5).read().decode()
+    check("viewer asset server serves files over loopback", got == "spine-ok", got)
 
     # every control carries a tooltip; the painted grids carry them via the model
     tips = {"Apply mods": win.side.primary, "Revert all": win.side.revert,

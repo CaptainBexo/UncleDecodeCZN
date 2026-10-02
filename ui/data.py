@@ -29,6 +29,8 @@ IMG_EXT = cznmod.IMG_EXT
 DISABLED_DIR = "_disabled"
 DEFAULT_MODS = cznmod.MODS
 CHAR_THUMB_DIR = os.path.join(APP, "cache", "char_thumbs")   # shared with the Char ID tab
+SPINE_CACHE = os.path.join(APP, "cache", "spine")            # prepared viewer models
+NAMES_JSON = os.path.join(ROOT, "decoded", "names_all.json")
 
 STATUS_TXT = {"ok": "Enabled", "pending": "Pending", "error": "Failed", "off": "Disabled"}
 _WORST = {"error": 0, "pending": 1, "ok": 2}
@@ -42,7 +44,7 @@ CAT_PREFIX = (
 
 TABS = ["All", "Enabled", "Disabled"]
 SORTS = ["Newest", "Oldest", "Name A-Z"]
-MENU = [("box", "Mods"), ("sliders", "Settings"), ("users", "Char ID")]
+MENU = [("box", "Mods"), ("sliders", "Settings"), ("users", "Char ID"), ("eye", "Viewer")]
 
 
 @dataclass(frozen=True)
@@ -174,6 +176,21 @@ def _loose_title(rel: str, target: str) -> str:
     when the target names no known character."""
     pid = char_id_in(target)
     return f"{_CHAR_NAMES[pid]} - {pid} - {rel}" if pid else rel
+
+
+_SPINE_NAMES: list[str] | None = None
+
+
+def spine_files() -> list[str]:
+    """Every .scsp Spine skeleton path in the pack (sorted; loaded once)."""
+    global _SPINE_NAMES
+    if _SPINE_NAMES is None:
+        try:
+            with open(NAMES_JSON, encoding="utf-8") as f:
+                _SPINE_NAMES = sorted(n for n in json.load(f) if n.endswith(".scsp"))
+        except Exception:
+            _SPINE_NAMES = []
+    return _SPINE_NAMES
 
 
 def _loose(path: str, rel: str, state: dict, disabled: bool) -> Mod:

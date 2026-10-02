@@ -10,3 +10,4 @@ Mods/
 extract/
 decoded/*
 !decoded/names_all.json
+ui/shots/_spine/

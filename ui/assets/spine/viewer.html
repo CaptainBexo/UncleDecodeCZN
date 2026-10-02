@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin:0; height:100%; background:#161616; overflow:hidden;
+               font:12px Inter, system-ui, sans-serif; color:#8C8C8C; }
+  #c { width:100%; height:100%; display:block; }
+  #msg { position:absolute; left:16px; top:14px; white-space:pre-wrap; max-width:75%; }
+  #bar { position:absolute; left:16px; bottom:14px; right:16px; display:flex; gap:10px; align-items:center; }
+  select { background:#232323; color:#D6D6D6; border:1px solid rgba(255,255,255,0.12);
+           border-radius:6px; padding:5px 9px; font:12px Inter, sans-serif; max-width:360px; }
+  select:focus { outline:none; border-color:#3D6AFF; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">Loading...</div>
+<div id="bar"><select id="anim" title="Animation" style="visibility:hidden"></select></div>
+<script src="spine-webgl.js"></script>
+<script>
+"use strict";
+const msg = document.getElementById("msg");
+const canvas = document.getElementById("c");
+const model = new URLSearchParams(location.search).get("m") || "";
+function fail(t) { msg.style.display = "block"; msg.style.color = "#E06C6C"; msg.textContent = String(t); }
+window.addEventListener("error", function (e) { fail(e.message); });
+
+const gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: true });
+if (!gl) { fail("WebGL is not available in this environment."); }
+const renderer = new spine.webgl.SceneRenderer(canvas, gl);
+const manager = new spine.webgl.AssetManager(gl, model + "/");
+manager.loadText("skeleton.atlas");
+manager.loadTextureAtlas("skeleton.atlas");
+manager.loadText("skeleton.json");
+
+let skeleton = null, animationState = null;
+const animSel = document.getElementById("anim");
+
+function fitCamera() {
+  if (!skeleton) return;
+  renderer.resize(spine.webgl.ResizeMode.Expand);
+  skeleton.setToSetupPose();
+  skeleton.updateWorldTransform();
+  const off = new spine.Vector2(), size = new spine.Vector2();
+  skeleton.getBounds(off, size);
+  const vw = renderer.camera.viewportWidth, vh = renderer.camera.viewportHeight;
+  if (size.x > 0 && size.y > 0 && vw > 0 && vh > 0) {
+    renderer.camera.zoom = Math.max(size.x / vw, size.y / vh) * 1.12;
+  }
+  renderer.camera.position.set(off.x + size.x / 2, off.y + size.y / 2, 0);
+  if (renderer.camera.update) renderer.camera.update();
+}
+
+function setup() {
+  if (manager.hasErrors && manager.hasErrors()) {
+    fail("Asset load failed:\n" + manager.getErrors().join("\n"));
+    return;
+  }
+  const atlas = manager.get("skeleton.atlas");
+  const json = JSON.parse(manager.get("skeleton.json"));
+  const data = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(json);
+  skeleton = new spine.Skeleton(data);
+  animationState = new spine.AnimationState(new spine.AnimationStateData(data));
+  const names = (data.animations || []).map(function (a) { return a.name; });
+  if (names.length > 0) {
+    animSel.style.visibility = "visible";
+    names.forEach(function (n) {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      animSel.appendChild(o);
+    });
+    animationState.setAnimation(0, names[0], true);
+    animSel.onchange = function () { animationState.setAnimation(0, animSel.value, true); };
+  }
+  msg.style.display = "none";
+  fitCamera();
+}
+
+function boot() {
+  if (!manager.isLoadingComplete()) { requestAnimationFrame(boot); return; }
+  setup();
+}
+
+let last = performance.now();
+function frame() {
+  requestAnimationFrame(frame);
+  const now = performance.now();
+  const delta = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  if (animationState) { animationState.update(delta); animationState.apply(skeleton); }
+  if (!skeleton) return;
+  skeleton.updateWorldTransform();
+  gl.clearColor(0.086, 0.086, 0.086, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  renderer.begin();
+  renderer.drawSkeleton(skeleton, true);
+  renderer.end();
+}
+
+window.addEventListener("resize", function () { renderer.resize(spine.webgl.ResizeMode.Expand); });
+requestAnimationFrame(boot);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

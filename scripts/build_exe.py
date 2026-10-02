@@ -72,9 +72,13 @@ Using it
          game file with the same path, here face/portrait/1041.sct)
        - mod pack: Mods\\AnyName\\manifest.json =
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
-  4. CLOSE THE GAME before applying (the tool refuses to write while it runs).
-  5. Press "Apply mods". A new mod shows a "Pending" chip until you do.
-  6. Launch the game through STOVE as usual (the game only starts through
+  4. Preview the game's own Spine models in the "Viewer" tab (sidebar): type a
+     character id, effect or lobby name (e.g. "1041"), click a model and it
+     renders in the built-in WebGL player; pick any animation in the dropdown
+     at the bottom. Preview only - nothing is written to the game.
+  5. CLOSE THE GAME before applying (the tool refuses to write while it runs).
+  6. Press "Apply mods". A new mod shows a "Pending" chip until you do.
+  7. Launch the game through STOVE as usual (the game only starts through
      STOVE - a direct launch shows "please run through the launcher").
 
 Undo / switching mods off
@@ -84,6 +88,7 @@ Undo / switching mods off
 Notes
   - Client-side mods: use at your own discretion, like any game mod.
   - Encoding needs a CPU with AVX2 (any gaming PC from ~2014+ has it).
+  - The Spine viewer runs Esoteric Software's spine-ts runtime (3.8).
 """
 
 

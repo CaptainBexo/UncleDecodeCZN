@@ -15,8 +15,8 @@ import threading
 
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
-                               QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton,
-                               QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
+                               QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox,
+                               QPushButton, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 import data
 import theme
@@ -25,6 +25,7 @@ from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
 from widgets.mod_delegate import ModListView
 from widgets.sidebar import Sidebar
+from widgets.spine_panel import SpinePanel, SpinePrep
 from widgets import float_tip
 from widgets.title_bar import DragRow, WindowButtons
 
@@ -107,6 +108,8 @@ class MainWindow(QWidget):
         self.stack.addWidget(self.char_page)
         self.char_loader = ThumbLoader(self)
         self.char_loader.loaded.connect(self._char_thumb_ready)
+        self.viewer_page = None                 # built lazily: WebEngine is heavy
+        self._spine_prep = None
         cv.addWidget(self.stack, 1)
         self.btns = WindowButtons(main_col)     # overlay pinned to the top-right corner
         root.addWidget(main_col, 1)
@@ -255,7 +258,10 @@ class MainWindow(QWidget):
     def _set_page(self, name: str) -> None:
         if name == "Char ID":
             self._ensure_chars()
-        self.stack.setCurrentIndex({"Mods": 0, "Settings": 1, "Char ID": 2}.get(name, 0))
+        elif name == "Viewer":
+            self._ensure_viewer()
+        self.stack.setCurrentIndex(
+            {"Mods": 0, "Settings": 1, "Char ID": 2, "Viewer": 3}.get(name, 0))
 
     def _build_char_page(self, parent: QWidget) -> QWidget:
         """Character dex: portrait grid with a search box and group chips."""
@@ -406,6 +412,105 @@ class MainWindow(QWidget):
     def closeEvent(self, e) -> None:
         self.char_loader.stop()
         super().closeEvent(e)
+
+    # ---------- viewer (Spine) ----------
+
+    def _ensure_viewer(self) -> None:
+        if self.viewer_page is None:
+            self.viewer_page = self._build_viewer_page(self.stack)
+            self.stack.addWidget(self.viewer_page)
+
+    def _build_viewer_page(self, parent: QWidget) -> QWidget:
+        """Spine model viewer: searchable .scsp list on the left, WebGL panel right."""
+        page = QWidget(parent)
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(theme.PAD_MAIN, 0, theme.PAD_MAIN, 10)
+        lay.setSpacing(0)
+
+        head = DragRow(page)
+        head.setFixedHeight(theme.HEADER_H)
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(0, 0, 0, 0)
+        title = QLabel("Viewer", head)
+        title.setObjectName("pageTitle")
+        hl.addWidget(title)
+        hl.addStretch(1)
+        lay.addWidget(head)
+        sep = QFrame(page)
+        sep.setObjectName("sideSep")
+        sep.setFixedHeight(1)
+        lay.addWidget(sep)
+        lay.addSpacing(20)
+
+        row = QWidget(page)
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(16)
+        self.spine_search = QLineEdit(row)
+        self.spine_search.setObjectName("searchBox")
+        self.spine_search.setFixedSize(360, 36)
+        self.spine_search.setPlaceholderText("Search model...")
+        self.spine_search.setToolTip("Search the game's .scsp Spine models (character id, effect, lobby, card...)")
+        self.spine_search.setClearButtonEnabled(True)
+        self.spine_search.addAction(theme.icon("search", 16, theme.TEXT_MUTED),
+                                    QLineEdit.ActionPosition.LeadingPosition)
+        self.spine_search.textChanged.connect(self._spine_filter)
+        rl.addWidget(self.spine_search)
+        self.spine_hint = QLabel("", row)
+        self.spine_hint.setObjectName("totalLbl")
+        rl.addWidget(self.spine_hint)
+        rl.addStretch(1)
+        lay.addWidget(row)
+        lay.addSpacing(12)
+
+        split = QWidget(page)
+        sl = QHBoxLayout(split)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.setSpacing(14)
+        self.spine_list = QListWidget(split)
+        self.spine_list.setObjectName("spineList")
+        self.spine_list.setFixedWidth(360)
+        self.spine_list.setToolTip("Click a model to load it in the viewer")
+        self.spine_list.itemClicked.connect(self._spine_load)
+        sl.addWidget(self.spine_list)
+        self.spine_panel = SpinePanel(data.SPINE_CACHE, split)
+        sl.addWidget(self.spine_panel, 1)
+        lay.addWidget(split, 1)
+        self._spine_filter("")
+        return page
+
+    def _spine_filter(self, text: str) -> None:
+        q = text.strip().lower()
+        self.spine_list.clear()
+        total = len(data.spine_files())
+        if len(q) < 2:
+            self.spine_hint.setText("Type to find one of %d Spine models" % total)
+            return
+        hits = [n for n in data.spine_files() if q in n.lower()]
+        for n in hits[:300]:
+            self.spine_list.addItem(n)
+        self.spine_hint.setText("%d match(es)%s" % (len(hits), " - first 300" if len(hits) > 300 else ""))
+
+    def _spine_load(self, item) -> None:
+        if self._spine_prep is not None and self._spine_prep.isRunning():
+            return
+        name = item.text()
+        slug = name[: -len(".scsp")].replace("/", "__")
+        out = os.path.join(data.SPINE_CACHE, slug)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        self.spine_hint.setText("Preparing %s ..." % name)
+        self._spine_prep = SpinePrep(name, slug, out, self)
+        self._spine_prep.done.connect(self._spine_ready)
+        self._spine_prep.start()
+
+    def _spine_ready(self, ok: bool, slug: str, err: str) -> None:
+        QApplication.restoreOverrideCursor()
+        if ok:
+            self.spine_hint.setText("Loaded " + slug)
+            self.spine_panel.show_model(slug)
+        else:
+            self.spine_hint.setText("Failed: " + slug)
+            self.spine_panel.show_message(err)
 
     def _build_settings_page(self, parent: QWidget) -> QWidget:
         """A real settings page in the content column (no popup)."""

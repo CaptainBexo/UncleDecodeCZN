@@ -139,6 +139,12 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
               color: {TEXT}; font-size: {F_CHIP}px; padding: 0 8px; }}
 #searchBox:focus {{ border-color: {ACCENT}; }}
 
+#spineList {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: {R_MENU}px;
+              padding: 6px; color: {TEXT}; outline: none; }}
+#spineList::item {{ padding: 6px 8px; border-radius: 5px; }}
+#spineList::item:hover {{ background: {BG_CARD_HOVER}; }}
+#spineList::item:selected {{ background: {BG_SELECTED}; color: {TEXT_STRONG}; }}
+
 #emptyTitle {{ font-size: {F_CARD}px; font-weight: 600; color: {TEXT_STRONG}; }}
 #emptyDesc {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
 
