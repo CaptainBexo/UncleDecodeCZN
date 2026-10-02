@@ -15,7 +15,7 @@ import threading
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton,
-                               QStackedWidget, QVBoxLayout, QWidget)
+                               QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 import data
 import theme
@@ -305,9 +305,11 @@ class MainWindow(QWidget):
         info.setSpacing(12)
         info.addWidget(self.char_count)
         info.addWidget(self.char_hint, 1)
+        info.addStretch(1)          # pins the columns button to the right edge
         self.char_cols_btn = QPushButton("Columns: Auto", page)
         self.char_cols_btn.setObjectName("sortBtn")
         self.char_cols_btn.setFixedHeight(28)
+        self.char_cols_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self.char_cols_btn.setIcon(theme.icon("chevron-down", 14))
         self.char_cols_btn.setIconSize(QSize(14, 14))
         self.char_cols_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)

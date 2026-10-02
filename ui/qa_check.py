@@ -319,10 +319,12 @@ def main() -> None:
     for _ in range(3):
         app.processEvents()
     check("re-clicking the chip clears the group filter", len(win._char_shown) == len(rows))
+    orig_cols = win.char_grid.cols_fixed
+    win.char_grid.set_columns(0)          # QA is deterministic: test adaptive first
+    app.processEvents()
     check("char grid cell >= min width",
           win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,
           str(win.char_grid.gridSize()))
-    orig_cols = win.char_grid.cols_fixed
     win.char_grid.set_columns(6)
     app.processEvents()
     gs6 = win.char_grid.gridSize()
@@ -334,6 +336,11 @@ def main() -> None:
     check("Auto columns restored", win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,
           str(win.char_grid.gridSize()))
     win.char_grid.set_columns(orig_cols)
+    check("columns button hugs its content", win.char_cols_btn.width() < 170,
+          str(win.char_cols_btn.width()))
+    bx = win.char_cols_btn.mapTo(win, QPoint(win.char_cols_btn.width(), 0)).x()
+    check("columns button flush with the content right edge", bx == win.width() - theme.PAD_MAIN,
+          f"{bx} vs {win.width() - theme.PAD_MAIN}")
     menu["Mods"].click()
     for _ in range(3):
         app.processEvents()
