@@ -45,6 +45,7 @@ class StatusDot(QWidget):
 class Sidebar(QWidget):
     applyClicked = Signal()
     revertClicked = Signal()
+    runGameClicked = Signal()
     pageChanged = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -100,6 +101,23 @@ class Sidebar(QWidget):
             self._menu_items.append(b)
         self._menu_items[0].setChecked(True)
         self.menu_group.buttonClicked.connect(lambda b: self.pageChanged.emit(b.text()))
+
+        # quick-launch under the Char ID tab: needs STOVE running in the background
+        menu_lay.addSpacing(12)
+        self.run_game = QPushButton("Run Game", menu)
+        self.run_game.setObjectName("runGameBtn")
+        self.run_game.setFixedHeight(44)
+        self.run_game.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.run_game.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.run_game.clicked.connect(self.runGameClicked)
+        menu_lay.addWidget(self.run_game)
+        menu_lay.addSpacing(4)
+        self.run_hint = QLabel("Open STOVE first (can stay in tray)", menu)
+        self.run_hint.setObjectName("runHint")
+        self.run_hint.setWordWrap(True)
+        menu_lay.addWidget(self.run_hint)
+        self._stove = False
+        self._run_enabled()
         lay.addWidget(menu)
 
         lay.addStretch(1)
@@ -163,6 +181,23 @@ class Sidebar(QWidget):
         self.dot.set_color(theme.GAME_ON if running else theme.GAME_OFF)
         self.status_lbl.setText("Game running" if running else "Game closed")
         self._apply_enabled()
+        self._run_enabled()
+
+    def set_stove(self, running: bool) -> None:
+        if running == self._stove:
+            return
+        self._stove = running
+        self._run_enabled()
+
+    def _run_enabled(self) -> None:
+        """Run Game works only while STOVE runs in the background and the game is closed."""
+        self.run_game.setEnabled(self._stove and not self._running)
+        if self._running:
+            self.run_hint.setText("Game is already running")
+        elif self._stove:
+            self.run_hint.setText("STOVE is running - click to launch")
+        else:
+            self.run_hint.setText("Open STOVE first (can stay in tray)")
 
     def _apply_enabled(self) -> None:
         # Writing needs the game CLOSED: while it runs the whole block is disabled.

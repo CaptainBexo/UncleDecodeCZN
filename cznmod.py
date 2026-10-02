@@ -47,19 +47,28 @@ STATE = os.path.join(MODS, ".state.json")
 LOG = os.path.join(MODS, ".log.txt")
 PIDF = os.path.join(MODS, ".watch.pid")
 GAME_EXE = "ssr-stove-shield.exe"
+STOVE_EXE = "STOVE.exe"
 EFFORT = os.environ.get("CZNMOD_EFFORT", "-medium")
 IMG_EXT = (".png", ".webp", ".jpg", ".jpeg", ".modfile")
 
 
-def game_running():
+def _task_running(exe):
     try:
         out = subprocess.run(
-            ["tasklist", "/FI", f"IMAGENAME eq {GAME_EXE}"],
+            ["tasklist", "/FI", f"IMAGENAME eq {exe}"],
             capture_output=True, text=True,
             creationflags=0x08000000 if os.name == "nt" else 0).stdout
-        return GAME_EXE.lower() in out.lower()
+        return exe.lower() in out.lower()
     except Exception:
         return False
+
+
+def game_running():
+    return _task_running(GAME_EXE)
+
+
+def stove_running():
+    return _task_running(STOVE_EXE)
 
 
 def png_target(path):

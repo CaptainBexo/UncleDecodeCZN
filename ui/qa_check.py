@@ -420,6 +420,29 @@ def main() -> None:
     check("mouse click does not focus a button", app.focusWidget() is not b,
           str(app.focusWidget()))
 
+    # ---------- Run Game button (STOVE-gated quick launch) ----------
+    fired: list = []
+    win.side.runGameClicked.connect(lambda: fired.append(1))
+    win.side.set_stove(False)
+    win.side.set_game(False)
+    check("Run Game disabled without STOVE", not win.side.run_game.isEnabled(),
+          win.side.run_hint.text())
+    win.side.set_stove(True)
+    check("Run Game enabled with STOVE running", win.side.run_game.isEnabled(),
+          win.side.run_hint.text())
+    win.side.run_game.click()
+    check("Run Game click emits", bool(fired))
+    win.side.set_game(True)
+    check("Run Game disabled while the game runs", not win.side.run_game.isEnabled(),
+          win.side.run_hint.text())
+    win.side.set_stove(False)
+    win.side.set_game(False)
+    cmd = data.game_launch_cmd()
+    check("launch cmd = loader + shield arg",
+          cmd[0].endswith("ucldr_chaoszeronightmare_gl_loader_x64.exe")
+          and cmd[1] == "bin\\ssr-stove-shield.exe", str(cmd))
+    check("qss: Run Game green style present", "#runGameBtn" in qss and theme.GAME_ON in qss)
+
     # ---------- game-running state ----------
     real_running = data.game_running
     data.game_running = lambda: True

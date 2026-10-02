@@ -234,6 +234,18 @@ def game_running() -> bool:
     return cznmod.game_running()
 
 
+def stove_running() -> bool:
+    return cznmod.stove_running()
+
+
+def game_launch_cmd() -> list[str]:
+    """The command STOVE itself uses to start the game (loader + shield arg;
+    cwd must be the game root). A bare launch is refused unless STOVE runs."""
+    root = game_root() or ""
+    return [os.path.join(root, "bin", "ucldr_chaoszeronightmare_gl_loader_x64.exe"),
+            "bin\\ssr-stove-shield.exe"]
+
+
 _ROOT: list = []          # [game_root | _NONE] memoized; set_game_dir() / tests clear it
 _NONE = object()
 

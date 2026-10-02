@@ -117,6 +117,7 @@ class MainWindow(QWidget):
         self.info.sortChanged.connect(self._set_sort)
         self.side.applyClicked.connect(lambda: self._run_cli(["apply"], "Apply mods"))
         self.side.revertClicked.connect(self._revert_all)
+        self.side.runGameClicked.connect(self._run_game)
         self.side.pageChanged.connect(self._set_page)
         self.view.chipClicked.connect(self._toggle_mod)
         self.view.filesDropped.connect(self._add_paths)
@@ -231,6 +232,19 @@ class MainWindow(QWidget):
     def _open_mods(self) -> None:
         os.makedirs(self._mods_dir, exist_ok=True)
         os.startfile(self._mods_dir)
+
+    def _run_game(self) -> None:
+        """Quick-launch the game through the same loader STOVE uses. Needs STOVE
+        running in the background - the client refuses a bare launch otherwise."""
+        if not data.game_root():
+            self._status("Game folder not found - set it on the Settings page")
+            return
+        try:
+            subprocess.Popen(data.game_launch_cmd(), cwd=data.game_root(),
+                             creationflags=0x08000000)
+            self._status("Game launching... (if nothing happens, start STOVE first)")
+        except OSError as e:
+            self._status(f"Launch failed: {e}")
 
     def _pick_game_dir(self) -> None:
         """Browse for the game folder (only offered while none was found)."""
@@ -509,6 +523,7 @@ class MainWindow(QWidget):
 
     def _poll_game(self) -> None:
         self.side.set_game(data.game_running())
+        self.side.set_stove(data.stove_running())
 
     # ---------- frameless window: resize grips + maximise state ----------
 
