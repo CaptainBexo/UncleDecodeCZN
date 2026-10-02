@@ -449,10 +449,11 @@ def main() -> None:
     check("path bar loads a pack model (spine mode)",
           "m=model__1041" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
-    for _ in range(120):                 # wait until the page script has run setup() (hook + wiring)
+    for _ in range(120):                 # wait until THIS page (not the old one) ran setup()
         _r = {}
         win.dock.panel.view.page().runJavaScript(
-            "!!(window.__viewer && window.__viewer.animationState)", lambda v: _r.update(v=v))
+            "location.search.indexOf('model__1041') >= 0 &&"
+            " !!(window.__viewer && window.__viewer.animationState)", lambda v: _r.update(v=v))
         for _ in range(4):
             app.processEvents()
             time.sleep(0.02)
@@ -483,7 +484,7 @@ def main() -> None:
     st = _json.loads(res.get("v") or "{}")
     check("transport keeps only the play/pause button",
           st.get("btns") == 1, "buttons=%s" % st.get("btns"))
-    check("wheel zooms in about the cursor", st.get("z1", 0) > st.get("z0", 0) * 1.1,
+    check("wheel zooms in about the cursor", st.get("z1", 9e9) < st.get("z0", 0) / 1.1,
           "z %s -> %s" % (st.get("z0"), st.get("z1")))
     check("drag pans the camera", st.get("dx", 0) < -5 and st.get("dy", 0) > 5,
           "dx=%s dy=%s" % (st.get("dx"), st.get("dy")))
@@ -548,6 +549,27 @@ def main() -> None:
         check("mod preview plays the portrait spine with the mod page",
               "m=mod_" in win.dock.panel.view.url().toString(),
               win.dock.panel.view.url().toString())
+        _sk = {}
+        for _ in range(120):                # this page (not the previous one) must be set up
+            _r2 = {}
+            win.dock.panel.view.page().runJavaScript(
+                "location.search.indexOf('mod_') >= 0 &&"
+                " !!(window.__viewer && window.__viewer.animationState)", lambda v: _r2.update(v=v))
+            for _ in range(4):
+                app.processEvents()
+                time.sleep(0.02)
+            if _r2.get("v"):
+                break
+            time.sleep(0.05)
+        win.dock.panel.view.page().runJavaScript(
+            "window.__viewer && window.__viewer.skeleton ?"
+            " window.__viewer.skeleton.skin.name : 'none'",
+            lambda v: _sk.update(v=v))
+        for _ in range(30):
+            app.processEvents()
+            time.sleep(0.02)
+        check("portrait renders the 'normal' skin (face present, not 'default')",
+              _sk.get("v") == "normal", str(_sk.get("v")))
         win.dock.load_image(m1017.banner)   # plain image first, so the sync changes the url
         win.dock.path.setText(m1017.banner)
         url_before = win.dock.panel.view.url().toString()

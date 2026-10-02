@@ -216,7 +216,7 @@ if (imgSrc) {
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault();
       const z0 = cam.zoom;
-      const nz = Math.max(z0 / 8, Math.min(z0 * 8, z0 * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      const nz = Math.max(z0 / 8, Math.min(z0 * 8, z0 * (e.deltaY < 0 ? 1 / 1.15 : 1.15)));
       const rect = canvas.getBoundingClientRect();
       const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
       const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
@@ -296,6 +296,11 @@ if (imgSrc) {
         .readSkeletonData(JSON.parse(manager.get("skeleton.json")));
     }
     skeleton = new spine.Skeleton(data);
+    const baseSkin = skeleton.data.findSkin ? skeleton.data.findSkin("normal") : null;
+    if (baseSkin) {              // expression skins swap the face in; "default" lacks it
+      skeleton.setSkin(baseSkin);
+      skeleton.setSlotsToSetupPose();
+    }
     animationState = new spine.AnimationState(new spine.AnimationStateData(data));
     wireControls(data);
     wireView();
