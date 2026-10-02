@@ -145,6 +145,16 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 #spineList::item:hover {{ background: {BG_CARD_HOVER}; }}
 #spineList::item:selected {{ background: {BG_SELECTED}; color: {TEXT_STRONG}; }}
 
+#viewerDock {{ background: {BG_SIDE}; border-left: 1px solid {DIVIDER}; }}
+#viewerStrip {{ background: {BG_SIDE}; border-left: 1px solid {DIVIDER}; }}
+#viewerStripBtn {{ background: transparent; border: none; border-radius: 6px; }}
+#viewerStripBtn:hover {{ background: {BG_CHIP}; }}
+#viewerStripBtn:checked {{ background: {BG_SELECTED}; }}
+#dockBtn {{ background: {BG_CHIP}; color: {TEXT}; border: none; border-radius: 6px;
+            font-size: {F_CHIP}px; }}
+#dockBtn:hover {{ background: {BG_CHIP_HOVER}; }}
+#dockBtn:pressed {{ background: {BG_SELECTED}; }}
+
 #emptyTitle {{ font-size: {F_CARD}px; font-weight: 600; color: {TEXT_STRONG}; }}
 #emptyDesc {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
 

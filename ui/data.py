@@ -46,7 +46,7 @@ CAT_PREFIX = (
 
 TABS = ["All", "Enabled", "Disabled"]
 SORTS = ["Newest", "Oldest", "Name A-Z"]
-MENU = [("box", "Mods"), ("sliders", "Settings"), ("users", "Char ID"), ("eye", "Viewer")]
+MENU = [("box", "Mods"), ("sliders", "Settings"), ("users", "Char ID")]
 
 
 @dataclass(frozen=True)

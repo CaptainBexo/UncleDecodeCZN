@@ -24,6 +24,7 @@ FILES = [
     "ui/widgets/empty_state.py",
     "ui/widgets/float_tip.py",
     "ui/widgets/spine_panel.py",
+    "ui/widgets/viewer_dock.py",
     "ui/spine_serve.py",
     "ui/assets",
     "scripts/czn_pack.py",

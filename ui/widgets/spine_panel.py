@@ -63,8 +63,11 @@ class SpinePanel(QWidget):
             self._base = spine_serve.ensure(self._cache)
         return self._base
 
-    def show_model(self, slug: str) -> None:
-        self.view.setUrl(QUrl("%s/viewer.html?m=%s" % (self._serve(), slug)))
+    def show_model(self, slug: str, bump: int = 0) -> None:
+        self.view.setUrl(QUrl("%s/viewer.html?m=%s&r=%d" % (self._serve(), slug, bump)))
+
+    def show_image(self, rel: str, bump: int = 0) -> None:
+        self.view.setUrl(QUrl("%s/viewer.html?img=%s&r=%d" % (self._serve(), rel, bump)))
 
     def show_message(self, text: str, error: bool = True) -> None:
         safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

@@ -11,9 +11,10 @@ item under the cursor for item views (the painted card grids).
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QTimer, Qt
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QTimer, Qt
 from PySide6.QtGui import QColor, QCursor, QHelpEvent, QPainter, QPen
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QLabel
+from shiboken6 import isValid
 
 OFF_X, OFF_Y = 14, 20       # cursor gap; flips to the other side near screen edges
 POLL_MS = 16                # ~60 fps while following the pointer
@@ -63,13 +64,18 @@ class FloatTip(QLabel):
 
 
 def text_at(gp: QPoint) -> str:
-    """Tooltip text under the cursor (widget tip, or an item view's ToolTipRole)."""
+    """Tooltip text under the cursor (widget tip, an item view's ToolTipRole, or a
+    delegate region tip - painted buttons like the card's eye describe themselves)."""
     w = QApplication.widgetAt(gp)
     while w is not None:
         if isinstance(w, QAbstractItemView):
-            idx = w.indexAt(w.viewport().mapFromGlobal(gp))
+            pos = w.viewport().mapFromGlobal(gp)
+            idx = w.indexAt(pos)
             if idx.isValid():
-                tip = idx.data(Qt.ItemDataRole.ToolTipRole)
+                hook = getattr(w.itemDelegate(), "tooltip_at", None)
+                tip = hook(idx, QPointF(pos)) if hook else ""
+                if not tip:
+                    tip = idx.data(Qt.ItemDataRole.ToolTipRole)
                 if tip:
                     return str(tip)
             return ""
@@ -102,6 +108,11 @@ class TooltipController(QObject):
         app.installEventFilter(self)
 
     def eventFilter(self, obj, ev) -> bool:
+        # the popup can outlive its C++ side during interpreter/app teardown
+        # (Qt destroys top-level widgets in ~QApplication) - every entry point
+        # must tolerate that instead of cascading RuntimeErrors.
+        if not isValid(self.popup):
+            return False
         t = ev.type()
         if t == QEvent.Type.ToolTip:
             if isinstance(ev, QHelpEvent):
@@ -126,6 +137,9 @@ class TooltipController(QObject):
         self._poll.start()
 
     def _tick(self) -> None:
+        if not isValid(self.popup):
+            self._poll.stop()
+            return
         gp = QCursor.pos()
         if gp != self._gp:
             self._gp = gp
@@ -143,4 +157,5 @@ class TooltipController(QObject):
 
     def _hide(self) -> None:
         self._poll.stop()
-        self.popup.hide()
+        if isValid(self.popup):
+            self.popup.hide()

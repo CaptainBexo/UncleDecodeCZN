@@ -2,8 +2,8 @@
 
 No QWidget per card - the delegate caches scaled, top-rounded banner pixmaps (the
 char's portrait thumb by default, the mod's own PNG while hovered) and paints straight
-onto the viewport. The status chip drawn near the bottom is clickable: the view
-hit-tests it and emits chipClicked(row).
+onto the viewport. Two painted buttons are clickable: the status chip near the bottom
+(toggle enable/disable) and the eye button on the banner (preview in the Viewer dock).
 """
 from __future__ import annotations
 
@@ -71,6 +71,7 @@ class CardDelegate(QStyledItemDelegate):
         self._view = view
         self._thumbs: dict[tuple[int, int, str, float], QPixmap] = {}
         self.chip_hit: dict[int, QRectF] = {}
+        self.eye_hit: dict[int, QRectF] = {}
         self._hover = -1
         self._prev = -1
         self._v = 0.0
@@ -85,6 +86,12 @@ class CardDelegate(QStyledItemDelegate):
         self.f_small.setWeight(QFont.Weight.DemiBold)
 
     # ---- hover fade (QVariantAnimation for the self-painted part) ----
+
+    def tooltip_at(self, idx: QModelIndex, pos) -> str:
+        """Region tooltip (the float_tip hook): only the eye button describes itself;
+        everywhere else the item's own tooltip (status action) applies."""
+        r = self.eye_hit.get(idx.row())
+        return "Preview in Viewer" if r and r.contains(pos) else ""
 
     def set_hover(self, row: int) -> None:
         if row == self._hover:
@@ -218,6 +225,15 @@ class CardDelegate(QStyledItemDelegate):
         p.setPen(QColor(theme.TEXT_STRONG))
         p.drawText(brect, Qt.AlignmentFlag.AlignCenter, text)
 
+        # eye button, top-left on the banner: preview this mod in the Viewer dock
+        eye = QRectF(banner.left() + 12, banner.top() + 12, 30, 30)
+        self.eye_hit[idx.row()] = eye
+        p.setBrush(QColor(0, 0, 0, 120))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(eye, 8, 8)
+        p.drawPixmap(QRectF(eye.center().x() - 9, eye.center().y() - 9, 18, 18).toRect(),
+                     theme.icon_pixmap("eye", 18, theme.TEXT_STRONG))
+
         # images/date pill overlapping the banner's bottom edge, left
         text = f"{m.meta} · {m.date}"
         pw = fm_small.horizontalAdvance(text) + 20
@@ -269,6 +285,7 @@ class ModListView(QListView):
     """IconMode grid; the card width adapts to the viewport, gap fixed at 16 px."""
 
     chipClicked = Signal(int)     # row whose status chip was clicked
+    previewClicked = Signal(int)  # row whose eye button was clicked
     filesDropped = Signal(list)   # file/folder paths dropped onto the grid
 
     def __init__(self, parent=None) -> None:
@@ -311,6 +328,7 @@ class ModListView(QListView):
         """Replace the card list (title role only; the delegate paints the rest)."""
         self.mods = mods
         self.card_delegate.chip_hit.clear()
+        self.card_delegate.eye_hit.clear()
         self.card_delegate.clear_thumbs()
         self.card_delegate.set_hover(-1)
         self.item_model.clear()
@@ -347,8 +365,19 @@ class ModListView(QListView):
         r = self.card_delegate.chip_hit.get(idx.row())
         return idx.row() if r and r.contains(pos) else -1
 
+    def _eye_at(self, pos) -> int:
+        idx = self.indexAt(pos.toPoint())
+        if not idx.isValid():
+            return -1
+        r = self.card_delegate.eye_hit.get(idx.row())
+        return idx.row() if r and r.contains(pos) else -1
+
     def mousePressEvent(self, e) -> None:
         if e.button() == Qt.MouseButton.LeftButton:
+            row = self._eye_at(e.position())
+            if row >= 0:
+                self.previewClicked.emit(row)
+                return
             row = self._chip_at(e.position())
             if row >= 0:
                 self.chipClicked.emit(row)
@@ -359,8 +388,8 @@ class ModListView(QListView):
         super().mouseMoveEvent(e)
         idx = self.indexAt(e.position().toPoint())
         self.card_delegate.set_hover(idx.row() if idx.isValid() else -1)
-        over_chip = self._chip_at(e.position()) >= 0
-        self.viewport().setCursor(Qt.CursorShape.PointingHandCursor if over_chip
+        over = self._chip_at(e.position()) >= 0 or self._eye_at(e.position()) >= 0
+        self.viewport().setCursor(Qt.CursorShape.PointingHandCursor if over
                                   else Qt.CursorShape.ArrowCursor)
 
     def leaveEvent(self, e) -> None:

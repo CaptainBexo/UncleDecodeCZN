@@ -72,10 +72,13 @@ Using it
          game file with the same path, here face/portrait/1041.sct)
        - mod pack: Mods\\AnyName\\manifest.json =
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
-  4. Preview the game's own Spine models in the "Viewer" tab (sidebar): type a
-     character id, effect or lobby name (e.g. "1041"), click a model and it
-     renders in the built-in WebGL player; pick any animation in the dropdown
-     at the bottom. Preview only - nothing is written to the game.
+  4. Preview: the eye button on a mod card opens it in the Viewer dock (right
+     side; the small eye strip at the right edge shows/hides the dock). In the
+     dock: images zoom with the wheel / pan by dragging; the path bar also
+     loads a pack model (e.g. "model/1041.scsp" or just "1041") with play,
+     timeline, speed and loop controls, or any local image / .sct file.
+     "Reload" re-reads the current file - handy right after editing a mod.
+     Preview only - nothing is written to the game.
   5. CLOSE THE GAME before applying (the tool refuses to write while it runs).
   6. Press "Apply mods". A new mod shows a "Pending" chip until you do.
   7. Launch the game through STOVE as usual (the game only starts through

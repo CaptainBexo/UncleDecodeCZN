@@ -14,6 +14,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import urllib.request
 
 from PIL import Image
@@ -230,6 +231,32 @@ def main() -> None:
     px = img.pixelColor(100, 20)
     check("banner shows the mod png", px.red() > 150 and px.green() < 120, str(px.getRgb()))
 
+    # eye button on the cards: paint, tooltip, click -> preview in the dock
+    win.view.card_delegate.eye_hit.clear()
+    win.view.viewport().repaint()
+    app.processEvents()
+    painted = sorted(win.view.card_delegate.eye_hit)
+    check("every card paints an eye button", painted == list(range(len(win.view.mods))), str(painted))
+    eye = win.view.card_delegate.eye_hit.get(0)
+    check("card eye button has a hit rect", eye is not None)
+    if eye is not None:
+        idx0 = win.view.item_model.index(0, 0)
+        check("eye tooltip says 'Preview in Viewer'",
+              win.view.card_delegate.tooltip_at(idx0, eye.center()) == "Preview in Viewer",
+              str(win.view.card_delegate.tooltip_at(idx0, eye.center())))
+        check("eye hit-test finds the row under the cursor", win.view._eye_at(eye.center()) == 0)
+        got2: dict = {}
+        win.view.previewClicked.connect(lambda r: got2.update(row=r))
+        QTest.mouseClick(win.view.viewport(), Qt.MouseButton.LeftButton, pos=eye.center().toPoint())
+        for _ in range(4):
+            app.processEvents()
+        check("clicking the eye requests a preview", got2.get("row") == 0, str(got2))
+        check("eye click opens the dock on the mod image",
+              win.dock.isVisible() and "img=" in win.dock.panel.view.url().toString(),
+              win.dock.panel.view.url().toString())
+        win._show_dock(False)          # later layout checks assume no dock column
+        app.processEvents()
+
     chips = win.toolbar.chips
     check("filter row = categories only (no All chip)",
           sorted(b.text() for b in chips.buttons) == ["Character", "Other", "UI"],
@@ -316,8 +343,8 @@ def main() -> None:
     check("Browse button hidden while the game is found",
           win._game_browse is not None and not win._game_browse.isVisible())
     # ---------- Char ID page ----------
-    check("sidebar menu lists Mods/Settings/Char ID/Viewer",
-          [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID", "Viewer"],
+    check("sidebar menu lists Mods/Settings/Char ID",
+          [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID"],
           str([b.text() for b in win.side._menu_items]))
     menu["Char ID"].click()
     for _ in range(8):
@@ -367,33 +394,66 @@ def main() -> None:
     check("fixed 6 columns: exactly 6 per row", per_row == 6,
           f"cell {gs6.width()} per_row {per_row}")
 
-    # ---------- Viewer page (Spine) ----------
-    menu["Viewer"].click()
-    for _ in range(8):
-        app.processEvents()
-    check("Viewer is a real page below Char ID",
-          win.stack.currentIndex() == 3 and win.viewer_page is not None and win.viewer_page.isVisible(),
-          str(win.stack.currentIndex()))
-    check("viewer lists every .scsp model", len(data.spine_files()) > 15000, str(len(data.spine_files())))
-    win.spine_search.setText("1041")
+    # ---------- Viewer dock (right side) ----------
+    menu["Mods"].click()
     for _ in range(3):
         app.processEvents()
-    items = [win.spine_list.item(i).text() for i in range(win.spine_list.count())]
-    check("spine search '1041' finds model/1041.scsp", "model/1041.scsp" in items, str(items[:5]))
-    check("spine search shows a match count", "match" in win.spine_hint.text(), win.spine_hint.text())
-    win.spine_search.setText("")
-    for _ in range(2):
+    check("viewer dock starts hidden, strip visible",
+          not win.dock.isVisible() and win.strip.isVisible())
+    win.strip.btn.click()
+    for _ in range(3):
         app.processEvents()
-    check("clearing the spine search hides the list",
-          win.spine_list.count() == 0 and "Type to find" in win.spine_hint.text(),
-          win.spine_hint.text())
-    import spine_serve
-    srv_dir = tempfile.mkdtemp(prefix="czn_qa_srv_")
-    with open(os.path.join(srv_dir, "probe.txt"), "w", encoding="utf-8") as f:
-        f.write("spine-ok")
-    base = spine_serve.ensure(srv_dir)
-    got = urllib.request.urlopen(base + "/probe.txt", timeout=5).read().decode()
-    check("viewer asset server serves files over loopback", got == "spine-ok", got)
+    check("the strip toggles the dock open", win.dock.isVisible())
+    check("dock has a path bar plus Load and Reload",
+          win.dock.path.placeholderText().startswith("Mod name")
+          and win.dock.load_btn.text() == "Load" and win.dock.reload_btn.text() == "Reload")
+    dock_dir = tempfile.mkdtemp(prefix="czn_qa_dock_")
+    dock_png = os.path.join(dock_dir, "preview.png")
+    Image.new("RGB", (48, 32), (200, 40, 40)).save(dock_png)
+    win.dock.load_image(dock_png)
+    for _ in range(4):
+        app.processEvents()
+    import re as _re
+
+    def _dock_bump() -> int:
+        m = _re.search(r"&r=(\d+)", win.dock.panel.view.url().toString())
+        return int(m.group(1)) if m else -1
+
+    check("dock loads a local image (image mode)",
+          "img=" in win.dock.panel.view.url().toString() and _dock_bump() > 0,
+          win.dock.panel.view.url().toString())
+    check("dock status reports the load", "preview.png" in win.dock.status.text(),
+          win.dock.status.text())
+    b1 = _dock_bump()
+    win.dock.reload()
+    for _ in range(100):
+        app.processEvents()
+        time.sleep(0.02)
+        if _dock_bump() != b1:      # setUrl is async - wait for the URL to move
+            break
+    check("Reload re-serves with a fresh cache-buster",
+          _dock_bump() == b1 + 1, "%d -> %d" % (b1, _dock_bump()))
+    win.dock.path.setText("model/1041.scsp")
+    win.dock.load_text()
+    for _ in range(400):
+        app.processEvents()
+        time.sleep(0.02)
+        if "m=model__1041" in win.dock.panel.view.url().toString():
+            break
+    check("path bar loads a pack model (spine mode)",
+          "m=model__1041" in win.dock.panel.view.url().toString(),
+          win.dock.panel.view.url().toString())
+    win.dock.path.setText("no_such_thing_at_all")
+    win.dock.load_text()
+    check("unknown path reports honestly in the status",
+          "Nothing matches" in win.dock.status.text(), win.dock.status.text())
+    win._show_dock(False)
+    app.processEvents()
+    u = win.dock.panel.view.url()
+    body = urllib.request.urlopen("%s://%s/viewer.html" % (u.scheme(), u.authority()),
+                                  timeout=5).read().decode()
+    check("viewer asset server serves files over loopback",
+          "spine-webgl" in body and "img" in body, "%d bytes" % len(body))
 
     # every control carries a tooltip; the painted grids carry them via the model
     tips = {"Apply mods": win.side.primary, "Revert all": win.side.revert,
@@ -461,8 +521,9 @@ def main() -> None:
     check("columns button hugs its content", win.char_cols_btn.width() < 170,
           str(win.char_cols_btn.width()))
     bx = win.char_cols_btn.mapTo(win, QPoint(win.char_cols_btn.width(), 0)).x()
-    check("columns button flush with the content right edge", bx == win.width() - theme.PAD_MAIN,
-          f"{bx} vs {win.width() - theme.PAD_MAIN}")
+    expx = win.char_page.mapTo(win, QPoint(win.char_page.width(), 0)).x() - theme.PAD_MAIN
+    check("columns button flush with the content right edge", bx == expx,
+          f"{bx} vs {expx}")
 
     # right-click card menu: Export Asset / Locate Asset
     from PySide6.QtGui import QContextMenuEvent

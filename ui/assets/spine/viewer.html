@@ -5,102 +5,238 @@
 <style>
   html, body { margin:0; height:100%; background:#161616; overflow:hidden;
                font:12px Inter, system-ui, sans-serif; color:#8C8C8C; }
+  #stage { position:absolute; inset:0 0 46px 0; overflow:hidden; }
   #c { width:100%; height:100%; display:block; }
-  #msg { position:absolute; left:16px; top:14px; white-space:pre-wrap; max-width:75%; }
-  #bar { position:absolute; left:16px; bottom:14px; right:16px; display:flex; gap:10px; align-items:center; }
-  select { background:#232323; color:#D6D6D6; border:1px solid rgba(255,255,255,0.12);
-           border-radius:6px; padding:5px 9px; font:12px Inter, sans-serif; max-width:360px; }
-  select:focus { outline:none; border-color:#3D6AFF; }
+  #img { position:absolute; left:0; top:0; transform-origin:0 0; cursor:grab;
+         user-select:none; -webkit-user-drag:none; }
+  #msg { position:absolute; left:16px; top:14px; white-space:pre-wrap; max-width:80%; z-index:3; }
+  #bar { position:absolute; left:10px; right:10px; bottom:8px; height:30px;
+         display:flex; gap:6px; align-items:center; }
+  #bar[hidden] { display:none; }        /* id selector would beat the hidden attribute */
+  #bar button { background:#232323; color:#D6D6D6; border:1px solid rgba(255,255,255,0.12);
+                border-radius:6px; min-width:30px; height:26px; font:13px Inter, sans-serif; cursor:pointer; }
+  #bar button:hover { background:#2C2C2C; }
+  #bar select { background:#232323; color:#D6D6D6; border:1px solid rgba(255,255,255,0.12);
+                border-radius:6px; padding:4px 8px; font:12px Inter, sans-serif; max-width:200px; }
+  #bar select:focus { outline:none; border-color:#3D6AFF; }
+  #seek { flex:1; min-width:60px; height:4px; accent-color:#3D6AFF; cursor:pointer; }
+  #time { min-width:52px; text-align:center; color:#9A9A9A; }
+  #anim { flex:1; max-width:190px; }
+  #bar label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  #zoomhint { position:absolute; right:12px; bottom:52px; color:#5A5A5A; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<div id="stage"><canvas id="c"></canvas><img id="img" alt="" hidden></div>
 <div id="msg">Loading...</div>
-<div id="bar"><select id="anim" title="Animation" style="visibility:hidden"></select></div>
+<div id="zoomhint" hidden>wheel: zoom &middot; drag: pan &middot; double-click: fit</div>
+<div id="bar" hidden>
+  <button id="prev" title="Previous animation">&#9198;</button>
+  <button id="play" title="Play / Pause">&#9199;</button>
+  <button id="next" title="Next animation">&#9197;</button>
+  <input id="seek" type="range" min="0" max="1000" value="0" title="Timeline">
+  <span id="time">0.0 / 0.0 s</span>
+  <select id="speed" title="Playback speed">
+    <option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="0.75">0.75x</option>
+    <option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option>
+  </select>
+  <label title="Loop the animation"><input id="loop" type="checkbox" checked>loop</label>
+  <select id="anim" title="Animation" style="visibility:hidden"></select>
+</div>
 <script src="spine-webgl.js"></script>
 <script>
 "use strict";
 const msg = document.getElementById("msg");
 const canvas = document.getElementById("c");
-const model = new URLSearchParams(location.search).get("m") || "";
+const imgEl = document.getElementById("img");
+const bar = document.getElementById("bar");
+const params = new URLSearchParams(location.search);
+const model = params.get("m") || "";
+const imgSrc = params.get("img") || "";
 function fail(t) { msg.style.display = "block"; msg.style.color = "#E06C6C"; msg.textContent = String(t); }
 window.addEventListener("error", function (e) { fail(e.message); });
 
-const gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: true });
-if (!gl) { fail("WebGL is not available in this environment."); }
-const renderer = new spine.webgl.SceneRenderer(canvas, gl);
-const manager = new spine.webgl.AssetManager(gl, model + "/");
-manager.loadText("skeleton.atlas");
-manager.loadTextureAtlas("skeleton.atlas");
-manager.loadText("skeleton.json");
+if (imgSrc) {
+  /* ---------- image mode: zoom / pan ---------- */
+  document.getElementById("zoomhint").hidden = false;
+  let z = 1, px = 0, py = 0, drag = null;
+  const apply = function () {
+    imgEl.style.transform = "translate(" + px + "px," + py + "px) scale(" + z + ")";
+  };
+  const fit = function () {
+    const sw = imgEl.naturalWidth, sh = imgEl.naturalHeight;
+    const st = document.getElementById("stage");
+    if (!sw || !sh) return;
+    z = Math.min(st.clientWidth / sw, st.clientHeight / sh) * 0.96;
+    px = (st.clientWidth - sw * z) / 2;
+    py = (st.clientHeight - sh * z) / 2;
+    imgEl.style.width = sw + "px";
+    imgEl.style.height = sh + "px";
+    apply();
+  };
+  imgEl.onload = function () { fit(); msg.style.display = "none"; };
+  imgEl.onerror = function () { fail("Cannot load image: " + imgSrc); };
+  imgEl.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    const nz = Math.max(0.05, Math.min(8, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    px = e.offsetX - (e.offsetX - px) * (nz / z);
+    py = e.offsetY - (e.offsetY - py) * (nz / z);
+    z = nz;
+    apply();
+  }, { passive: false });
+  imgEl.addEventListener("pointerdown", function (e) {
+    drag = [e.clientX, e.clientY, px, py];
+    imgEl.setPointerCapture(e.pointerId);
+    imgEl.style.cursor = "grabbing";
+  });
+  imgEl.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    px = drag[2] + e.clientX - drag[0];
+    py = drag[3] + e.clientY - drag[1];
+    apply();
+  });
+  imgEl.addEventListener("pointerup", function () {
+    drag = null;
+    imgEl.style.cursor = "grab";
+  });
+  imgEl.addEventListener("dblclick", fit);
+  window.addEventListener("resize", fit);
+  imgEl.hidden = false;
+  imgEl.src = imgSrc;
+} else {
+  /* ---------- spine mode: media player ---------- */
+  const gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: true });
+  if (!gl) { fail("WebGL is not available in this environment."); }
+  const renderer = new spine.webgl.SceneRenderer(canvas, gl);
+  const manager = new spine.webgl.AssetManager(gl, model + "/");
+  manager.loadText("skeleton.atlas");
+  manager.loadTextureAtlas("skeleton.atlas");
+  manager.loadText("skeleton.json");
 
-let skeleton = null, animationState = null;
-const animSel = document.getElementById("anim");
+  let skeleton = null, animationState = null, paused = false, seeking = false, names = [];
+  const animSel = document.getElementById("anim");
+  const seek = document.getElementById("seek");
+  const timeLbl = document.getElementById("time");
+  const playBtn = document.getElementById("play");
+  const loopCb = document.getElementById("loop");
 
-function fitCamera() {
-  if (!skeleton) return;
-  renderer.resize(spine.webgl.ResizeMode.Expand);
-  skeleton.setToSetupPose();
-  skeleton.updateWorldTransform();
-  const off = new spine.Vector2(), size = new spine.Vector2();
-  skeleton.getBounds(off, size);
-  const vw = renderer.camera.viewportWidth, vh = renderer.camera.viewportHeight;
-  if (size.x > 0 && size.y > 0 && vw > 0 && vh > 0) {
-    renderer.camera.zoom = Math.max(size.x / vw, size.y / vh) * 1.12;
+  function fitCamera() {
+    if (!skeleton) return;
+    renderer.resize(spine.webgl.ResizeMode.Expand);
+    skeleton.setToSetupPose();
+    skeleton.updateWorldTransform();
+    const off = new spine.Vector2(), size = new spine.Vector2();
+    skeleton.getBounds(off, size);
+    const vw = renderer.camera.viewportWidth, vh = renderer.camera.viewportHeight;
+    if (size.x > 0 && size.y > 0 && vw > 0 && vh > 0) {
+      renderer.camera.zoom = Math.max(size.x / vw, size.y / vh) * 1.12;
+    }
+    renderer.camera.position.set(off.x + size.x / 2, off.y + size.y / 2, 0);
+    if (renderer.camera.update) renderer.camera.update();
   }
-  renderer.camera.position.set(off.x + size.x / 2, off.y + size.y / 2, 0);
-  if (renderer.camera.update) renderer.camera.update();
-}
 
-function setup() {
-  if (manager.hasErrors && manager.hasErrors()) {
-    fail("Asset load failed:\n" + manager.getErrors().join("\n"));
-    return;
+  function setAnim(i) {
+    if (!names.length) return;
+    i = (i + names.length) % names.length;
+    animSel.selectedIndex = i;
+    paused = false;
+    playBtn.innerHTML = "&#9199;";
+    animationState.setAnimation(0, names[i], loopCb.checked);
+    seek.value = 0;
   }
-  const atlas = manager.get("skeleton.atlas");
-  const json = JSON.parse(manager.get("skeleton.json"));
-  const data = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(json);
-  skeleton = new spine.Skeleton(data);
-  animationState = new spine.AnimationState(new spine.AnimationStateData(data));
-  const names = (data.animations || []).map(function (a) { return a.name; });
-  if (names.length > 0) {
-    animSel.style.visibility = "visible";
-    names.forEach(function (n) {
-      const o = document.createElement("option");
-      o.value = n; o.textContent = n;
-      animSel.appendChild(o);
+
+  function wireControls(data) {
+    bar.hidden = false;
+    names = (data.animations || []).map(function (a) { return a.name; });
+    if (names.length > 0) {
+      animSel.style.visibility = "visible";
+      names.forEach(function (n) {
+        const o = document.createElement("option");
+        o.value = n; o.textContent = n;
+        animSel.appendChild(o);
+      });
+      setAnim(0);
+    }
+    playBtn.onclick = function () {
+      paused = !paused;
+      playBtn.innerHTML = paused ? "&#9654;" : "&#9199;";
+    };
+    document.getElementById("prev").onclick = function () { setAnim(animSel.selectedIndex - 1); };
+    document.getElementById("next").onclick = function () { setAnim(animSel.selectedIndex + 1); };
+    animSel.onchange = function () { setAnim(animSel.selectedIndex); };
+    seek.addEventListener("pointerdown", function () { seeking = true; });
+    seek.addEventListener("pointerup", function () { seeking = false; });
+    seek.addEventListener("input", function () {
+      const e = animationState.getCurrent(0);
+      if (!e) return;
+      e.trackTime = (seek.value / 1000) * e.animation.duration;
+      animationState.update(0);
+      animationState.apply(skeleton);
     });
-    animationState.setAnimation(0, names[0], true);
-    animSel.onchange = function () { animationState.setAnimation(0, animSel.value, true); };
+    document.getElementById("speed").onchange = function () {
+      animationState.timeScale = parseFloat(this.value);
+    };
+    loopCb.onchange = function () {
+      const e = animationState.getCurrent(0);
+      if (e) e.loop = loopCb.checked;
+    };
   }
-  msg.style.display = "none";
-  fitCamera();
-}
 
-function boot() {
-  if (!manager.isLoadingComplete()) { requestAnimationFrame(boot); return; }
-  setup();
-}
+  function setup() {
+    if (manager.hasErrors && manager.hasErrors()) {
+      fail("Asset load failed:\n" + manager.getErrors().join("\n"));
+      return;
+    }
+    const atlas = manager.get("skeleton.atlas");
+    const json = JSON.parse(manager.get("skeleton.json"));
+    const data = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(json);
+    skeleton = new spine.Skeleton(data);
+    animationState = new spine.AnimationState(new spine.AnimationStateData(data));
+    wireControls(data);
+    msg.style.display = "none";
+    fitCamera();
+  }
 
-let last = performance.now();
-function frame() {
+  function boot() {
+    if (!manager.isLoadingComplete()) { requestAnimationFrame(boot); return; }
+    setup();
+  }
+
+  let last = performance.now();
+  function frame() {
+    requestAnimationFrame(frame);
+    const now = performance.now();
+    const delta = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    if (animationState && !paused) {
+      animationState.update(delta);
+      animationState.apply(skeleton);
+      const e = animationState.getCurrent(0);
+      if (e) {
+        const d = e.animation.duration;
+        if (!e.loop && e.trackTime >= d) {          // end of a one-shot: hold the last pose
+          e.trackTime = d;
+          paused = true;
+          playBtn.innerHTML = "&#9654;";
+        }
+        const t = e.loop ? e.trackTime % d : Math.min(e.trackTime, d);   // looped trackTime grows past d
+        if (!seeking) seek.value = d > 0 ? Math.round(1000 * t / d) : 0;
+        timeLbl.textContent = t.toFixed(1) + "/" + d.toFixed(1) + "s";
+      }
+    }
+    if (!skeleton) return;
+    skeleton.updateWorldTransform();
+    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    renderer.begin();
+    renderer.drawSkeleton(skeleton, true);
+    renderer.end();
+  }
+
+  window.addEventListener("resize", function () { renderer.resize(spine.webgl.ResizeMode.Expand); });
+  requestAnimationFrame(boot);
   requestAnimationFrame(frame);
-  const now = performance.now();
-  const delta = Math.min((now - last) / 1000, 0.05);
-  last = now;
-  if (animationState) { animationState.update(delta); animationState.apply(skeleton); }
-  if (!skeleton) return;
-  skeleton.updateWorldTransform();
-  gl.clearColor(0.086, 0.086, 0.086, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  renderer.begin();
-  renderer.drawSkeleton(skeleton, true);
-  renderer.end();
 }
-
-window.addEventListener("resize", function () { renderer.resize(spine.webgl.ResizeMode.Expand); });
-requestAnimationFrame(boot);
-requestAnimationFrame(frame);
 </script>
 </body>
 </html>

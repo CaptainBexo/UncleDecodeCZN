@@ -15,7 +15,7 @@ import threading
 
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
-                               QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox,
+                               QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
                                QPushButton, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 import data
@@ -25,7 +25,7 @@ from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
 from widgets.mod_delegate import ModListView
 from widgets.sidebar import Sidebar
-from widgets.spine_panel import SpinePanel, SpinePrep
+from widgets.viewer_dock import ViewerDock, ViewerStrip
 from widgets import float_tip
 from widgets.title_bar import DragRow, WindowButtons
 
@@ -40,8 +40,8 @@ class MainWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self.setWindowTitle("CZN MM/MI - Uncle's CZN Mod Manager / Mod Importer")
-        self.setMinimumSize(880, 560)
-        self.resize(1100, 700)
+        self.setMinimumSize(1200, 600)      # 240 sidebar + 26 strip + 480 dock + content min
+        self.resize(1200, 750)
         # The window itself holds the startup focus: otherwise Qt focuses the first
         # tab-chain button when the window is shown and lights its focus ring. The
         # ring is reserved for Tab navigation (all buttons use Qt.TabFocus).
@@ -108,11 +108,16 @@ class MainWindow(QWidget):
         self.stack.addWidget(self.char_page)
         self.char_loader = ThumbLoader(self)
         self.char_loader.loaded.connect(self._char_thumb_ready)
-        self.viewer_page = None                 # built lazily: WebEngine is heavy
-        self._spine_prep = None
         cv.addWidget(self.stack, 1)
-        self.btns = WindowButtons(main_col)     # overlay pinned to the top-right corner
+        self.btns = WindowButtons(self)     # overlay pinned to the window's top-right corner
         root.addWidget(main_col, 1)
+        # right-side Viewer dock (hidden until a preview is requested)
+        self.strip = ViewerStrip(self)
+        root.addWidget(self.strip)
+        self.dock = ViewerDock(self._mods_dir, self)
+        root.addWidget(self.dock)
+        self.dock.hide()
+        self.btns.raise_()                      # buttons float above the strip / dock
 
         # wiring
         self.tab_row.tabChanged.connect(self._set_tab)
@@ -124,6 +129,9 @@ class MainWindow(QWidget):
         self.side.revertClicked.connect(self._revert_all)
         self.side.pageChanged.connect(self._set_page)
         self.view.chipClicked.connect(self._toggle_mod)
+        self.view.previewClicked.connect(self._preview_mod)
+        self.strip.toggled.connect(self._show_dock)
+        self.dock.close_btn.clicked.connect(lambda: self._show_dock(False))
         self.view.filesDropped.connect(self._add_paths)
         self.empty.filesDropped.connect(self._add_paths)
 
@@ -258,10 +266,7 @@ class MainWindow(QWidget):
     def _set_page(self, name: str) -> None:
         if name == "Char ID":
             self._ensure_chars()
-        elif name == "Viewer":
-            self._ensure_viewer()
-        self.stack.setCurrentIndex(
-            {"Mods": 0, "Settings": 1, "Char ID": 2, "Viewer": 3}.get(name, 0))
+        self.stack.setCurrentIndex({"Mods": 0, "Settings": 1, "Char ID": 2}.get(name, 0))
 
     def _build_char_page(self, parent: QWidget) -> QWidget:
         """Character dex: portrait grid with a search box and group chips."""
@@ -413,104 +418,16 @@ class MainWindow(QWidget):
         self.char_loader.stop()
         super().closeEvent(e)
 
-    # ---------- viewer (Spine) ----------
+    # ---------- viewer dock ----------
 
-    def _ensure_viewer(self) -> None:
-        if self.viewer_page is None:
-            self.viewer_page = self._build_viewer_page(self.stack)
-            self.stack.addWidget(self.viewer_page)
+    def _show_dock(self, on: bool) -> None:
+        self.dock.setVisible(on)
+        self.strip.btn.setChecked(on)
 
-    def _build_viewer_page(self, parent: QWidget) -> QWidget:
-        """Spine model viewer: searchable .scsp list on the left, WebGL panel right."""
-        page = QWidget(parent)
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(theme.PAD_MAIN, 0, theme.PAD_MAIN, 10)
-        lay.setSpacing(0)
-
-        head = DragRow(page)
-        head.setFixedHeight(theme.HEADER_H)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(0, 0, 0, 0)
-        title = QLabel("Viewer", head)
-        title.setObjectName("pageTitle")
-        hl.addWidget(title)
-        hl.addStretch(1)
-        lay.addWidget(head)
-        sep = QFrame(page)
-        sep.setObjectName("sideSep")
-        sep.setFixedHeight(1)
-        lay.addWidget(sep)
-        lay.addSpacing(20)
-
-        row = QWidget(page)
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.setSpacing(16)
-        self.spine_search = QLineEdit(row)
-        self.spine_search.setObjectName("searchBox")
-        self.spine_search.setFixedSize(360, 36)
-        self.spine_search.setPlaceholderText("Search model...")
-        self.spine_search.setToolTip("Search the game's .scsp Spine models (character id, effect, lobby, card...)")
-        self.spine_search.setClearButtonEnabled(True)
-        self.spine_search.addAction(theme.icon("search", 16, theme.TEXT_MUTED),
-                                    QLineEdit.ActionPosition.LeadingPosition)
-        self.spine_search.textChanged.connect(self._spine_filter)
-        rl.addWidget(self.spine_search)
-        self.spine_hint = QLabel("", row)
-        self.spine_hint.setObjectName("totalLbl")
-        rl.addWidget(self.spine_hint)
-        rl.addStretch(1)
-        lay.addWidget(row)
-        lay.addSpacing(12)
-
-        split = QWidget(page)
-        sl = QHBoxLayout(split)
-        sl.setContentsMargins(0, 0, 0, 0)
-        sl.setSpacing(14)
-        self.spine_list = QListWidget(split)
-        self.spine_list.setObjectName("spineList")
-        self.spine_list.setFixedWidth(360)
-        self.spine_list.setToolTip("Click a model to load it in the viewer")
-        self.spine_list.itemClicked.connect(self._spine_load)
-        sl.addWidget(self.spine_list)
-        self.spine_panel = SpinePanel(data.SPINE_CACHE, split)
-        sl.addWidget(self.spine_panel, 1)
-        lay.addWidget(split, 1)
-        self._spine_filter("")
-        return page
-
-    def _spine_filter(self, text: str) -> None:
-        q = text.strip().lower()
-        self.spine_list.clear()
-        total = len(data.spine_files())
-        if len(q) < 2:
-            self.spine_hint.setText("Type to find one of %d Spine models" % total)
-            return
-        hits = [n for n in data.spine_files() if q in n.lower()]
-        for n in hits[:300]:
-            self.spine_list.addItem(n)
-        self.spine_hint.setText("%d match(es)%s" % (len(hits), " - first 300" if len(hits) > 300 else ""))
-
-    def _spine_load(self, item) -> None:
-        if self._spine_prep is not None and self._spine_prep.isRunning():
-            return
-        name = item.text()
-        slug = name[: -len(".scsp")].replace("/", "__")
-        out = os.path.join(data.SPINE_CACHE, slug)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        self.spine_hint.setText("Preparing %s ..." % name)
-        self._spine_prep = SpinePrep(name, slug, out, self)
-        self._spine_prep.done.connect(self._spine_ready)
-        self._spine_prep.start()
-
-    def _spine_ready(self, ok: bool, slug: str, err: str) -> None:
-        QApplication.restoreOverrideCursor()
-        if ok:
-            self.spine_hint.setText("Loaded " + slug)
-            self.spine_panel.show_model(slug)
-        else:
-            self.spine_hint.setText("Failed: " + slug)
-            self.spine_panel.show_message(err)
+    def _preview_mod(self, row: int) -> None:
+        if 0 <= row < len(self.view.mods):
+            self._show_dock(True)
+            self.dock.show_mod(self.view.mods[row])
 
     def _build_settings_page(self, parent: QWidget) -> QWidget:
         """A real settings page in the content column (no popup)."""
@@ -655,7 +572,8 @@ class MainWindow(QWidget):
                 # child widget - intercept it here to start a system resize.
                 # Exception: presses on the window buttons (which reach y=0) must
                 # stay clicks, never a resize.
-                on_btns = obj is self.btns or self.btns.isAncestorOf(obj)
+                on_btns = obj is self.btns or (isinstance(obj, QWidget)
+                                               and self.btns.isAncestorOf(obj))
                 pos = self.mapFromGlobal(ev.globalPosition().toPoint())
                 if self.rect().contains(pos) and not on_btns:
                     z = self._zone(pos)
