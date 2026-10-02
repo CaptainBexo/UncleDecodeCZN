@@ -402,6 +402,25 @@ def main() -> None:
     check("float tooltip resolves model tips on cards",
           win._tips.popup.text() == win.view.item_model.item(0).toolTip(),
           win._tips.popup.text().replace("\n", " | "))
+    # glide: one follow tick moves part of the way toward the pointer (not a jump)
+    from widgets import float_tip as ft
+
+    class _Cur:
+        pos = staticmethod(lambda: QPoint(500, 300))
+
+    real_cursor = ft.QCursor
+    ft.QCursor = _Cur
+    try:
+        p = win._tips.popup
+        p.move(300, 300)
+        win._tips._gp = QPoint(500, 300)      # pretend the pointer already moved
+        win._tips._tick()
+        moved = p.pos().x()
+        check("float tooltip glides toward the pointer",
+              300 < moved < 500, f"x {moved} of 514")
+    finally:
+        ft.QCursor = real_cursor
+        win._tips._hide()
     QApplication.sendEvent(win, QHelpEvent(QEvent.Type.ToolTip, QPoint(2, 2),
                                            win.mapToGlobal(QPoint(2, 2))))
     check("float tooltip hides when nothing is described",

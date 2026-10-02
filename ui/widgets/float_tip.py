@@ -16,7 +16,8 @@ from PySide6.QtGui import QColor, QCursor, QHelpEvent, QPainter, QPen
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QLabel
 
 OFF_X, OFF_Y = 14, 20       # cursor gap; flips to the other side near screen edges
-POLL_MS = 30                # follow rate while visible
+POLL_MS = 16                # ~60 fps while following the pointer
+EASE = 0.45                 # glide: 1.0 = glued, lower = more trail
 RADIUS = 8
 
 
@@ -45,8 +46,8 @@ class FloatTip(QLabel):
         p.end()
         super().paintEvent(ev)
 
-    def place(self, gp: QPoint) -> None:
-        self.adjustSize()
+    def target_pos(self, gp: QPoint) -> QPoint:
+        """Cursor + offset, flipped at screen edges (pure math - no window move)."""
         x, y = gp.x() + OFF_X, gp.y() + OFF_Y
         scr = QApplication.screenAt(gp) or QApplication.primaryScreen()
         a = scr.availableGeometry()
@@ -54,7 +55,11 @@ class FloatTip(QLabel):
             x = gp.x() - self.width() - OFF_X
         if y + self.height() > a.bottom():
             y = gp.y() - self.height() - OFF_Y
-        self.move(max(a.left(), x), max(a.top(), y))
+        return QPoint(max(a.left(), x), max(a.top(), y))
+
+    def place(self, gp: QPoint) -> None:
+        self.adjustSize()          # once per show - never per follow frame
+        self.move(self.target_pos(gp))
 
 
 def text_at(gp: QPoint) -> str:
@@ -92,6 +97,7 @@ class TooltipController(QObject):
         self._gp = QPoint()
         self._poll = QTimer(self)
         self._poll.setInterval(POLL_MS)
+        self._poll.setTimerType(Qt.TimerType.PreciseTimer)
         self._poll.timeout.connect(self._tick)
         app.installEventFilter(self)
 
@@ -121,13 +127,19 @@ class TooltipController(QObject):
 
     def _tick(self) -> None:
         gp = QCursor.pos()
-        if gp == self._gp:
+        if gp != self._gp:
+            self._gp = gp
+            if text_at(gp) != self.popup.text():
+                self._hide()                     # left the described control
+                return
+        want = self.popup.target_pos(gp)
+        pos = self.popup.pos()
+        dx, dy = want.x() - pos.x(), want.y() - pos.y()
+        if abs(dx) + abs(dy) <= 2:
+            if dx or dy:
+                self.popup.move(want)
             return
-        self._gp = gp
-        if text_at(gp) != self.popup.text():
-            self._hide()                     # left the described control
-            return
-        self.popup.place(gp)                 # glued to the pointer
+        self.popup.move(round(pos.x() + dx * EASE), round(pos.y() + dy * EASE))
 
     def _hide(self) -> None:
         self._poll.stop()
