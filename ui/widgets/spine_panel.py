@@ -18,13 +18,15 @@ SPINE_DIR = os.path.join(theme.HERE, "assets", "spine")
 
 
 class SpinePrep(QThread):
-    """Runs spine_prep.prepare off the UI thread (page decoding takes a moment)."""
+    """Runs the asset prep off the UI thread (conversion / page decoding take a moment)."""
 
     done = Signal(bool, str, str)          # ok, slug, error-or-empty
 
-    def __init__(self, name: str, slug: str, out_dir: str, parent=None) -> None:
+    def __init__(self, kind: str, src: str, slug: str, out_dir: str,
+                 override: dict | None = None, parent=None) -> None:
         super().__init__(parent)
-        self._name, self._slug, self._out = name, slug, out_dir
+        self._kind, self._src, self._slug, self._out, self._override = \
+            kind, src, slug, out_dir, override
 
     def run(self) -> None:
         import sys
@@ -34,7 +36,10 @@ class SpinePrep(QThread):
             sys.path.insert(0, sp)
         try:
             import spine_prep
-            spine_prep.prepare(self._name, self._out)
+            if self._kind == "pack":
+                spine_prep.prepare(self._src, self._out, self._override)
+            else:
+                spine_prep.prepare_trio(self._src, self._out)
             self.done.emit(True, self._slug, "")
         except Exception as e:  # noqa: BLE001 - surface any prep failure in the panel
             self.done.emit(False, self._slug, "%s: %s" % (type(e).__name__, e))
@@ -63,8 +68,9 @@ class SpinePanel(QWidget):
             self._base = spine_serve.ensure(self._cache)
         return self._base
 
-    def show_model(self, slug: str, bump: int = 0) -> None:
-        self.view.setUrl(QUrl("%s/viewer.html?m=%s&r=%d" % (self._serve(), slug, bump)))
+    def show_model(self, slug: str, bump: int = 0, binary: bool = False) -> None:
+        self.view.setUrl(QUrl("%s/viewer.html?m=%s&r=%d%s"
+                              % (self._serve(), slug, bump, "&bin=1" if binary else "")))
 
     def show_image(self, rel: str, bump: int = 0) -> None:
         self.view.setUrl(QUrl("%s/viewer.html?img=%s&r=%d" % (self._serve(), rel, bump)))

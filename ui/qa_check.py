@@ -449,6 +449,49 @@ def main() -> None:
     check("path bar loads a pack model (spine mode)",
           "m=model__1041" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
+    # local standard trio (.skel/.json + .atlas + pages) + mod page override
+    import spine_prep
+    trio_src = tempfile.mkdtemp(prefix="czn_qa_trio_")
+    spine_prep.prepare("face/portrait/1041.scsp", trio_src)
+    trio_out = tempfile.mkdtemp(prefix="czn_qa_trio_out_")
+    info = spine_prep.prepare_trio(trio_src, trio_out)
+    check("local Spine trio loads from disk (.json/.atlas/png)",
+          os.path.isfile(os.path.join(trio_out, "skeleton.json"))
+          and os.path.isfile(os.path.join(trio_out, "skeleton.atlas"))
+          and bool(info["pages"]), str(info["pages"]))
+    win.dock.load_trio(trio_src)
+    for _ in range(600):
+        app.processEvents()
+        time.sleep(0.02)
+        if "m=local_" in win.dock.panel.view.url().toString():
+            break
+    check("dock loads a local trio folder", "m=local_" in win.dock.panel.view.url().toString(),
+          win.dock.panel.view.url().toString())
+    ov_png = os.path.join(dock_dir, "override.png")
+    Image.new("RGBA", (64, 40), (10, 200, 10, 255)).save(ov_png)
+    ov_out = tempfile.mkdtemp(prefix="czn_qa_ov_")
+    spine_prep.prepare("face/portrait/1041.scsp", ov_out, {"1041.sct": ov_png})
+    page = os.path.join(ov_out, "1041.png")
+    check("page override swaps the mod image into the atlas page",
+          os.path.isfile(page) and Image.open(page).size == (64, 40),
+          str(Image.open(page).size) if os.path.isfile(page) else "missing")
+    real_mods = r"D:\UncleDecodeCZN\dist_exe\Mods"
+    m1017 = None
+    if os.path.isdir(real_mods):
+        ren, roff = data.scan(real_mods)
+        m1017 = next((x for x in (*ren, *roff) if x.desc.endswith("face/portrait/1017.sct")), None)
+    if m1017 is not None:
+        win.dock.show_mod(m1017)
+        for _ in range(800):
+            app.processEvents()
+            time.sleep(0.02)
+            if "m=mod_" in win.dock.panel.view.url().toString():
+                break
+        check("mod preview plays the portrait spine with the mod page",
+              "m=mod_" in win.dock.panel.view.url().toString(),
+              win.dock.panel.view.url().toString())
+    else:
+        print("  [i] no face/portrait/1017.sct mod found - mod-spine check skipped")
     win.dock.path.setText("no_such_thing_at_all")
     win.dock.load_text()
     check("unknown path reports honestly in the status",

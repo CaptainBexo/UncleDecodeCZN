@@ -74,12 +74,16 @@ Using it
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
   4. Preview: the "Viewer" button at the bottom-right opens the Viewer as a
      separate window (drag it by its header, resize from the corner, the X
-     hides it again). The eye button on a mod card loads that mod's image
-     straight into it; the path bar also loads a pack model (e.g.
-     "model/1041.scsp" or just "1041") with play, timeline, speed and loop
-     controls, or any local image / .sct file. "Reload" re-reads the current
-     file - handy right after editing a mod. Preview only - nothing is
-     written to the game.
+     hides it again). The path bar loads:
+       - a mod name (or the eye button on a mod card): a mod that replaces a
+         character texture plays the real portrait animation with your image
+         swapped in as the atlas page;
+       - a game model by pack path (e.g. "model/1041.scsp" or just "1041");
+       - standard Spine files from disk: a .skel / .json / .atlas file, or a
+         folder containing them (plus the .png pages).
+     Play, timeline, speed and loop controls sit at the bottom; "Reload"
+     re-reads the current files - handy right after editing a mod.
+     Preview only - nothing is written to the game.
   5. CLOSE THE GAME before applying (the tool refuses to write while it runs).
   6. Press "Apply mods". A new mod shows a "Pending" chip until you do.
   7. Launch the game through STOVE as usual (the game only starts through

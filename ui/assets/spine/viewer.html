@@ -111,9 +111,17 @@ if (imgSrc) {
   const manager = new spine.webgl.AssetManager(gl, model + "/");
   manager.loadText("skeleton.atlas");
   manager.loadTextureAtlas("skeleton.atlas");
-  manager.loadText("skeleton.json");
+  if (params.get("bin") === "1") {
+    manager.loadBinary("skeleton.skel");
+  } else {
+    manager.loadText("skeleton.json");
+  }
 
   let skeleton = null, animationState = null, paused = false, seeking = false, names = [];
+  const isBin = params.get("bin") === "1";
+  window.__viewer = { canvas, gl, fitToDrawn,           // QA/debug hook (block-scoped vars)
+                      get renderer() { return renderer; },
+                      get skeleton() { return skeleton; } };
   const animSel = document.getElementById("anim");
   const seek = document.getElementById("seek");
   const timeLbl = document.getElementById("time");
@@ -123,7 +131,10 @@ if (imgSrc) {
   function fitCamera() {
     if (!skeleton) return;
     renderer.resize(spine.webgl.ResizeMode.Expand);
-    skeleton.setToSetupPose();
+    if (animationState) {           // portrait rigs draw wildly differently from their setup pose
+      animationState.update(0);
+      animationState.apply(skeleton);
+    }
     skeleton.updateWorldTransform();
     const off = new spine.Vector2(), size = new spine.Vector2();
     skeleton.getBounds(off, size);
@@ -133,6 +144,54 @@ if (imgSrc) {
     }
     renderer.camera.position.set(off.x + size.x / 2, off.y + size.y / 2, 0);
     if (renderer.camera.update) renderer.camera.update();
+    fitToDrawn();          // skeleton bounds can lie (invisible far attachments) - measure pixels
+  }
+
+  function fitToDrawn() {
+    // One probe render, then refit the camera to the pixels that actually got drawn.
+    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    renderer.begin();
+    renderer.drawSkeleton(skeleton, true);
+    renderer.end();
+    const w = canvas.width, h = canvas.height;
+    if (w < 4 || h < 4) return;
+    const px = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    // portrait rigs often carry a faint full-canvas layer - threshold adaptively
+    // off the strongest pixel so the bbox lands on the real art, not that layer.
+    let maxd = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const d = Math.abs(px[i] - 22) + Math.abs(px[i + 1] - 22) + Math.abs(px[i + 2] - 22);
+      if (d > maxd) maxd = d;
+    }
+    if (maxd < 36) return;                      // nothing meaningful drawn
+    const thr = Math.max(36, maxd * 0.25);
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w * 4;
+      for (let x = 0; x < w; x++) {
+        const i = row + x * 4;
+        const d = Math.abs(px[i] - 22) + Math.abs(px[i + 1] - 22) + Math.abs(px[i + 2] - 22);
+        if (d > thr) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0 || maxX - minX < 4 || maxY - minY < 4) return;
+    const cam = renderer.camera, z = cam.zoom;
+    const wx0 = (minX - w / 2) * z + cam.position.x;
+    const wx1 = (maxX + 1 - w / 2) * z + cam.position.x;
+    const wy0 = (minY - h / 2) * z + cam.position.y;
+    const wy1 = (maxY + 1 - h / 2) * z + cam.position.y;
+    cam.position.set((wx0 + wx1) / 2, (wy0 + wy1) / 2, 0);
+    cam.zoom = Math.max((wx1 - wx0) / w, (wy1 - wy0) / h) * 1.1;
+    if (cam.update) cam.update();
+    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
   }
 
   function setAnim(i) {
@@ -188,8 +247,14 @@ if (imgSrc) {
       return;
     }
     const atlas = manager.get("skeleton.atlas");
-    const json = JSON.parse(manager.get("skeleton.json"));
-    const data = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(json);
+    let data;
+    if (isBin) {
+      data = new spine.SkeletonBinary(new spine.AtlasAttachmentLoader(atlas))
+        .readSkeletonData(new Uint8Array(manager.get("skeleton.skel")));
+    } else {
+      data = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas))
+        .readSkeletonData(JSON.parse(manager.get("skeleton.json")));
+    }
     skeleton = new spine.Skeleton(data);
     animationState = new spine.AnimationState(new spine.AnimationStateData(data));
     wireControls(data);

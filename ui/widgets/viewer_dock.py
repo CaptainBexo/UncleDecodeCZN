@@ -143,18 +143,53 @@ class ViewerDock(QWidget):
     # ---------- loads ----------
 
     def show_mod(self, mod: data.Mod) -> None:
-        """Preview a mod's own image (the eye button on a mod card)."""
-        if mod.banner and os.path.isfile(mod.banner):
-            self.load_image(mod.banner, mod.name)
-        else:
+        """Preview a mod: when its target has a sibling Spine model (e.g.
+        face/portrait/1017.scsp for face/portrait/1017.sct) play that animation
+        with the mod's image swapped in as the atlas page; else show the image."""
+        if not (mod.banner and os.path.isfile(mod.banner)):
             self._say("This mod has no preview image", error=True)
+            return
+        self.path.setText(mod.name)
+        target = (mod.desc or "").strip()
+        base = target[: -len(".sct")] if target.lower().endswith(".sct") else target
+        if base and (base + ".scsp") in set(data.spine_files()):
+            self.load_mod_spine(base, mod.banner)
+            return
+        self.load_image(mod.banner, mod.name)
+
+    def load_mod_spine(self, base: str, img: str) -> None:
+        """Play the pack model at `base` with `img` replacing its page."""
+        if self._prep is not None and self._prep.isRunning():
+            return
+        override = {os.path.basename(base) + ".sct": img}
+        slug = "mod_" + hashlib.sha1(("%s|%s" % (base, img)).encode("utf-8")).hexdigest()[:8]
+        self._last = ("modspine", base, img)
+        self._say("Preparing %s with %s ..." % (base, os.path.basename(img)))
+        self._prep = SpinePrep("pack", base + ".scsp", slug,
+                               os.path.join(data.SPINE_CACHE, slug), override, self)
+        self._prep.done.connect(self._spine_ready)
+        self._prep.start()
 
     def load_text(self) -> None:
         text = self.path.text().strip()
         if not text:
-            self._say("Type a mod name, a .scsp pack path or an image file", error=True)
+            self._say("Type a mod name, a .scsp pack path, a .skel/.atlas file or an image", error=True)
+            return
+        if os.path.isdir(text):
+            self.load_trio(text)
             return
         if os.path.isfile(text):
+            ext = os.path.splitext(text)[1].lower()
+            if ext in (".skel", ".json", ".atlas"):
+                self.load_trio(text)
+                return
+            stem = os.path.splitext(text)[0]
+            if ext in IMAGE_EXT and os.path.isfile(stem + ".atlas"):
+                self.load_trio(stem + ".atlas")     # an image beside its Spine files
+                return
+            if ext in IMAGE_EXT and os.path.isfile(stem + ".skel"):
+                self.load_trio(stem + ".skel")
+                return
             self.load_image(text)
             return
         mods = self._mod_matches(text)
@@ -190,7 +225,18 @@ class ViewerDock(QWidget):
         slug = name[: -len(".scsp")].replace("/", "__")
         self._last = ("spine", name)
         self._say("Preparing %s ..." % name)
-        self._prep = SpinePrep(name, slug, os.path.join(data.SPINE_CACHE, slug), self)
+        self._prep = SpinePrep("pack", name, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
+        self._prep.done.connect(self._spine_ready)
+        self._prep.start()
+
+    def load_trio(self, path: str) -> None:
+        """Local standard Spine files: a .skel/.json, a .atlas, or a folder with them."""
+        if self._prep is not None and self._prep.isRunning():
+            return
+        slug = "local_" + hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:8]
+        self._last = ("trio", path)
+        self._say("Preparing %s ..." % os.path.basename(path))
+        self._prep = SpinePrep("files", path, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
         self._prep.done.connect(self._spine_ready)
         self._prep.start()
 
@@ -198,11 +244,15 @@ class ViewerDock(QWidget):
         if not self._last:
             self._say("Nothing loaded yet", error=True)
             return
-        kind, src = self._last
+        kind = self._last[0]
         if kind == "image":
-            self.load_image(src)
+            self.load_image(self._last[1])
+        elif kind == "trio":
+            self.load_trio(self._last[1])
+        elif kind == "modspine":
+            self.load_mod_spine(self._last[1], self._last[2])
         else:
-            self.load_spine(src)
+            self.load_spine(self._last[1])
 
     # ---------- internals ----------
 
@@ -233,7 +283,8 @@ class ViewerDock(QWidget):
 
     def _spine_ready(self, ok: bool, slug: str, err: str) -> None:
         if ok:
-            self.panel.show_model(slug, self._bump())
+            binary = os.path.isfile(os.path.join(data.SPINE_CACHE, slug, "skeleton.skel"))
+            self.panel.show_model(slug, self._bump(), binary)
             self._say("Loaded " + slug.replace("__", "/"))
         else:
             self._say("Failed: " + err, error=True)
