@@ -143,8 +143,9 @@ def _pack(folder: str, rel: str, state: dict, disabled: bool) -> Mod | None:
 
 
 def _loose(path: str, rel: str, state: dict, disabled: bool) -> Mod:
-    # same rule as cznmod.mod_targets: a "czn-target" tag wins, path mirror is the fallback
-    target = cznmod.png_target(path) or os.path.splitext(rel)[0] + ".sct"
+    # same rule as cznmod.mod_targets: tag wins, then path mirror, then a
+    # file-name match (editors strip the tag - the name still carries meaning)
+    target = cznmod.resolve_target(rel, path)
     newest = os.path.getmtime(path)
     return Mod(key=rel, action_name=rel, name=rel, desc=target, kind="loose image",
                cat=_cat_for([target]), meta="1 image", date=_date(newest), mtime=newest,

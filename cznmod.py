@@ -116,7 +116,7 @@ def mod_targets():
             if fn.lower().endswith(IMG_EXT):
                 p = os.path.join(root, fn)
                 rel = os.path.relpath(p, MODS).replace("\\", "/")
-                target = png_target(p) or os.path.splitext(rel)[0] + ".sct"
+                target = resolve_target(rel, p)
                 out.append((rel, p, target))
     return sorted(out)
 
@@ -141,18 +141,60 @@ def log(msg):
         fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
 
 
+_NAMES: list | None = None
+
+
+def _names():
+    """The pack path list (decoded/names_all.json), loaded once per process."""
+    global _NAMES
+    if _NAMES is None:
+        try:
+            _NAMES = json.load(open(os.path.join(HERE, "decoded", "names_all.json")))
+        except Exception:
+            _NAMES = []
+    return _NAMES
+
+
+def _stem_matches(stem):
+    """Pack paths whose file name is exactly `<stem>.sct`."""
+    s = stem.lower()
+    return [n for n in _names() if n.lower().endswith("/" + s + ".sct") or n.lower() == s + ".sct"]
+
+
+def resolve_target(rel, path):
+    """Where a mod's image goes: its czn-target tag, else the mirrored pack path,
+    else a file-name match - a unique pack path with the same stem, or
+    face/portrait/<stem>.sct for a plain character id (editors like Photoshop
+    strip the tag; the file name still carries the meaning). The card shows the
+    resolved target before applying."""
+    tagged = png_target(path)
+    if tagged:
+        return tagged
+    mirror = os.path.splitext(rel)[0] + ".sct"
+    if mirror.lower() in [n.lower() for n in _names()]:
+        return mirror
+    stem = os.path.splitext(os.path.basename(rel))[0]
+    m = _stem_matches(stem)
+    if len(m) == 1:
+        return m[0]
+    if stem.isdigit():
+        for n in m:
+            if n.lower().startswith("face/portrait/"):
+                return n
+    return mirror
+
+
 def _retype_hint(key, path, target):
     """Actionable hint when a mod has no czn-target tag and its target is unknown."""
     if png_target(path):
         return ""
-    stem = os.path.splitext(os.path.basename(path))[0].lower()
-    try:
-        names = json.load(open(os.path.join(HERE, "decoded", "names_all.json")))
-    except Exception:
-        names = []
-    for n in names:
-        if n.lower().endswith("/" + stem + ".sct") or n.lower() == stem + ".sct":
-            return f'  (no czn-target tag - re-tag: stamp "{key}" {n})'
+    stem = os.path.splitext(os.path.basename(path))[0]
+    m = _stem_matches(stem)
+    if len(m) == 1:
+        return f'  (no czn-target tag - re-tag: stamp "{key}" {m[0]})'
+    if m:
+        return (f'  (no czn-target tag; {len(m)} pack paths match "{stem}": '
+                + ", ".join(m[:4]) + f' - re-tag: stamp "{key}" <pick one>)')
     return ("  (no czn-target tag and no pack path matches this name - use the "
             "Char ID tab's Export Asset, or 'list <keyword>')")
 
@@ -182,6 +224,9 @@ def apply(quiet=False, verify_all=False):
     ok = skip = fail = 0
     for key, path, target in mods:
         png_sha = _sha1(open(path, "rb").read())
+        if not quiet and not png_target(path) and \
+                target.lower() != os.path.splitext(key)[0].lower() + ".sct":
+            print(f"[i] {key}: no czn-target tag - matched by file name -> {target}")
         entry = st.get(key, {})
         try:
             orig = P.extract(target)
@@ -409,7 +454,9 @@ def cmd_selftest():
         open(os.path.join(tmp, "1017.png"), "wb").write(b"x")
         hint = _retype_hint("1017.png", os.path.join(tmp, "1017.png"), "1017.sct")
         assert "face/portrait/1017.sct" in hint, hint
-        print("[OK] selftest: self-target + loose + pack all detected + re-tag hint")
+        got2 = {k: t for k, _p, t in mod_targets()}
+        assert got2["1017.png"] == "face/portrait/1017.sct", got2.get("1017.png")
+        print("[OK] selftest: self-target + loose + pack all detected + name match + hint")
         return 0
     finally:
         MODS = orig

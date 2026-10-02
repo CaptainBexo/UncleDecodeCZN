@@ -64,7 +64,10 @@ Using it
        - self-target png: any .png carrying a "czn-target" tag names the game
          file it replaces - drop it anywhere, name it anything (PNGs exported
          from the asset database are already tagged; re-tag after editing with
-         "stamp <file.png> <pack/path.sct>", or rename it to .modfile)
+         "stamp <file.png> <pack/path.sct>", or rename it to .modfile;
+         an editor that strips the tag? keep the game file's name instead:
+         1017.png auto-matches face/portrait/1017.sct, or mirror the pack
+         path under Mods\\)
        - loose image: Mods\\face\\portrait\\1041.png  (the .png replaces the
          game file with the same path, here face/portrait/1041.sct)
        - mod pack: Mods\\AnyName\\manifest.json =

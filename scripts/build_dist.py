@@ -134,6 +134,9 @@ Drop any of these into this Mods folder:
     Mods\\my renoa art.png     replaces face/portrait/1041.sct (per its tag)
   after editing and the tag is gone, re-tag it with:  stamp <file.png> <pack/path.sct>
   (renaming the file to .modfile also works - the tag lives in the content)
+  editors like Photoshop always strip the tag on save - then the tool falls
+  back to the file name:  Mods\\1017.png  matches face/portrait/1017.sct, and
+  Mods\\face\\portrait\\1017.png matches by its mirrored path (no tag needed)
 
 - loose image: keep the in-game path, use .png
     Mods\\face\\portrait\\1041.png   replaces face/portrait/1041.sct
