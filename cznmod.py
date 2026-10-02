@@ -8,6 +8,7 @@ Usage (or double-click the .bat files at workspace root):
   python cznmod.py enable <mod>       move a parked mod back from Mods/_disabled/ and apply it
   python cznmod.py list <keyword>     search pack file names (to build a Mods/ path)
   python cznmod.py dump <pack-path> <out.png>   export the current in-game image as PNG (edit base)
+  python cznmod.py export <id|keyword> <outdir> export every image of one character (id or keyword)
   python cznmod.py stamp <png> <pack/path.sct>  tag any png with its target (self-target mod)
   python cznmod.py selftest           check Mods/ detection for all three mod kinds
 
@@ -418,6 +419,13 @@ def cmd_dump(ppath, out):
     return 0
 
 
+def cmd_export(spec, outdir):
+    """Export every image asset of one character (id or keyword) to plain PNGs."""
+    from export_char import run
+    run(spec, outdir)
+    return 0
+
+
 def cli(argv):
     """Command-line entry shared by `python cznmod.py ...` and the packaged exe (`exe --cli ...`)."""
     cmd = argv[0] if argv else "apply"
@@ -439,6 +447,8 @@ def cli(argv):
         sys.exit(cmd_list(argv[1]))
     if cmd == "dump" and len(argv) > 2:
         sys.exit(cmd_dump(argv[1], argv[2]))
+    if cmd == "export" and len(argv) > 2:
+        sys.exit(cmd_export(argv[1], argv[2]))
     if cmd == "stamp" and len(argv) > 2:
         sys.exit(cmd_stamp(argv[1], argv[2]))
     if cmd == "selftest":

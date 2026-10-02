@@ -251,6 +251,14 @@ def game_root() -> str | None:
     return None if _ROOT[0] is _NONE else _ROOT[0]
 
 
+def asset_root() -> str:
+    """Where per-character asset exports live: env CZN_ASSET_DIR wins, then the
+    dev machine's D:\\CZN_Asset when present, otherwise a folder next to the exe."""
+    return (os.environ.get("CZN_ASSET_DIR")
+            or ("D:\\CZN_Asset" if os.path.isdir("D:\\CZN_Asset")
+                else os.path.join(APP, "CZN_Asset")))
+
+
 GAME_MANIFEST = ("bin", "appdata", "cznlive", "gameres", "manifest.ssra")
 
 

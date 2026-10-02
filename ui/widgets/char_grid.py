@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import threading
 
-from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QObject, QRectF,
+from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QObject, QPoint, QRectF,
                             QSettings, QSize, Qt, QVariantAnimation, Signal)
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter, QPixmap,
                            QStandardItem, QStandardItemModel)
@@ -239,6 +239,8 @@ class CharDelegate(QStyledItemDelegate):
 class CharGrid(QListView):
     """IconMode grid of character cards; the cell adapts to the viewport width."""
 
+    cardMenuRequested = Signal(int, QPoint)     # row, global position
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("cardGrid")
@@ -307,6 +309,14 @@ class CharGrid(QListView):
         super().mouseMoveEvent(e)
         idx = self.indexAt(e.position().toPoint())
         self.card_delegate.set_hover(idx.row() if idx.isValid() else -1)
+
+    def contextMenuEvent(self, e) -> None:
+        idx = self.indexAt(e.pos())
+        if idx.isValid():
+            self.cardMenuRequested.emit(idx.row(), e.globalPos())
+            e.accept()
+            return
+        super().contextMenuEvent(e)
 
     def leaveEvent(self, e) -> None:
         super().leaveEvent(e)

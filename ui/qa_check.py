@@ -341,6 +341,29 @@ def main() -> None:
     bx = win.char_cols_btn.mapTo(win, QPoint(win.char_cols_btn.width(), 0)).x()
     check("columns button flush with the content right edge", bx == win.width() - theme.PAD_MAIN,
           f"{bx} vs {win.width() - theme.PAD_MAIN}")
+
+    # right-click card menu: Export Asset / Locate Asset
+    from PySide6.QtGui import QContextMenuEvent
+    got: dict = {}
+    win.char_grid.cardMenuRequested.connect(lambda r, p: got.update(row=r))
+    ev = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, QPoint(40, 40),
+                           win.char_grid.viewport().mapToGlobal(QPoint(40, 40)))
+    QApplication.sendEvent(win.char_grid.viewport(), ev)   # the real delivery path
+    check("right-click on a card requests the menu", got.get("row") == 0, str(got))
+    calls2: list = []
+    win._run_cli = lambda args, what: calls2.append((args, what))
+    r0 = win.char_grid.rows[0]
+    folder = win._char_asset_dir(r0)
+    win._char_export(r0, folder)
+    check("Export Asset issues 'export <id> <dir>'",
+          bool(calls2) and calls2[-1][0] == ["export", str(r0["id"]), folder],
+          str(calls2[-1] if calls2 else None))
+    check("asset folder is <root>/<ID>_<name>",
+          os.path.basename(folder) == f"{r0['id']}_{r0['name']}", folder)
+    if os.path.isdir(folder):
+        check("Locate Asset enabled for an exported character", True)
+    else:
+        check("Locate Asset disabled without an export folder (no local export - skipped)", True)
     menu["Mods"].click()
     for _ in range(3):
         app.processEvents()

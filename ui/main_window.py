@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import queue
+import re
 import subprocess
 import threading
 
@@ -322,6 +323,7 @@ class MainWindow(QWidget):
 
         self.char_grid = CharGrid(page)
         self.char_cols_btn.setText(f"Columns: {self.char_grid.cols_fixed or 'Auto'}")
+        self.char_grid.cardMenuRequested.connect(self._char_menu)
         lay.addWidget(self.char_grid, 1)
         return page
 
@@ -369,6 +371,31 @@ class MainWindow(QWidget):
         if chosen:
             self.char_cols_btn.setText(f"Columns: {chosen.text()}")
             self.char_grid.set_columns(0 if chosen.text() == "Auto" else int(chosen.text()))
+
+    def _char_asset_dir(self, r: dict) -> str:
+        """<asset root>/<ID>_<name> - the folder Export Asset writes to."""
+        name = re.sub(r'[\\/:*?"<>|]', "_", r["name"] or "").strip()
+        return os.path.join(data.asset_root(), f"{r['id']}_{name}" if name else str(r["id"]))
+
+    def _char_menu(self, row: int, gpos) -> None:
+        if row >= len(self.char_grid.rows):
+            return
+        r = self.char_grid.rows[row]
+        folder = self._char_asset_dir(r)
+        menu = QMenu(self)
+        act_export = menu.addAction("Export Asset")
+        act_locate = menu.addAction("Locate Asset")
+        act_locate.setEnabled(os.path.isdir(folder))   # only after a real export
+        chosen = menu.exec(gpos)
+        if chosen is act_export:
+            self._char_export(r, folder)
+        elif chosen is act_locate:
+            os.startfile(folder)
+
+    def _char_export(self, r: dict, folder: str) -> None:
+        """Background export of every image of this character (re-runs add new files)."""
+        self._run_cli(["export", str(r["id"]), folder],
+                      f"Export {os.path.basename(folder)}")
 
     def closeEvent(self, e) -> None:
         self.char_loader.stop()

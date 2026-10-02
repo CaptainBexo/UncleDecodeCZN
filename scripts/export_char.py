@@ -4,11 +4,16 @@ Usage:
     python scripts/export_char.py 1041 D:/CZN_Asset
     python scripts/export_char.py lenore D:/CZN_Asset
 
+Also reachable from the tool: `cznmod.py export <id|keyword> <outdir>` and the
+Char ID tab's right-click menu (Export Asset).
+
 - matches the keyword against decoded/names_all.json on digit boundaries
   ("1041" never matches inside a longer number).
 - .sct files decode to PNG; other image files (.webp) are copied as-is.
 - output mirrors the pack path, so an edit drops straight back in by putting
   the PNG into the tool's Mods/ folder with the same relative path.
+- re-runs skip files that already exist (edits are never clobbered); delete the
+  folder to force a full refresh.
 - decode failures are listed in _README.txt instead of aborting the run.
 """
 import json
@@ -22,8 +27,7 @@ from czn_pack import Pack
 from sct2 import decode
 
 
-def main():
-    kw, outdir = sys.argv[1], sys.argv[2]
+def run(kw, outdir):
     names = json.load(open(os.path.join(HERE, "..", "decoded", "names_all.json"), encoding="utf-8"))
     pat = re.compile(r"(?<![0-9])%s(?![0-9])" % re.escape(kw), re.I)
     hits = [n for n in names if pat.search(n)]
@@ -77,5 +81,13 @@ def main():
         print("  FAIL", f)
 
 
+def main():
+    if len(sys.argv) < 3:
+        print(__doc__)
+        return 1
+    run(sys.argv[1], sys.argv[2])
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

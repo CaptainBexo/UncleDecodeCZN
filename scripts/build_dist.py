@@ -26,6 +26,7 @@ FILES = [
     "scripts/czn_pack.py",
     "scripts/char_catalog.py",
     "scripts/czn_paths.py",
+    "scripts/export_char.py",
     "scripts/sct2.py",
     "scripts/sct2_enc.py",
     "scripts/modpack.py",

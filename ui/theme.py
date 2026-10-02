@@ -155,6 +155,7 @@ QMenu {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: {R_M
 QMenu::item {{ padding: 7px 16px; border-radius: 6px; color: {TEXT}; font-size: {F_BTN}px;
                font-weight: 500; }}
 QMenu::item:selected {{ background: {BG_CHIP}; color: {TEXT_STRONG}; }}
+QMenu::item:disabled {{ color: #5A5A5A; }}
 
 QToolTip {{ background: #1C1C1C; color: {TEXT}; border: 1px solid {DIVIDER};
             padding: 4px 8px; font-size: {F_SMALL}px; }}
