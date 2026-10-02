@@ -6,7 +6,7 @@
   html, body { margin:0; height:100%; background:#161616; overflow:hidden;
                font:12px Inter, system-ui, sans-serif; color:#8C8C8C; }
   #stage { position:absolute; inset:0 0 46px 0; overflow:hidden; }
-  #c { width:100%; height:100%; display:block; }
+  #c { width:100%; height:100%; display:block; cursor:grab; }
   #img { position:absolute; left:0; top:0; transform-origin:0 0; cursor:grab;
          user-select:none; -webkit-user-drag:none; }
   #msg { position:absolute; left:16px; top:14px; white-space:pre-wrap; max-width:80%; z-index:3; }
@@ -31,9 +31,7 @@
 <div id="msg">Loading...</div>
 <div id="zoomhint" hidden>wheel: zoom &middot; drag: pan &middot; double-click: fit</div>
 <div id="bar" hidden>
-  <button id="prev" title="Previous animation">&#9198;</button>
-  <button id="play" title="Play / Pause">&#9199;</button>
-  <button id="next" title="Next animation">&#9197;</button>
+  <button id="play" title="Play / Pause">&#10074;&#10074;</button>
   <input id="seek" type="range" min="0" max="1000" value="0" title="Timeline">
   <span id="time">0.0 / 0.0 s</span>
   <select id="speed" title="Playback speed">
@@ -121,7 +119,15 @@ if (imgSrc) {
   const isBin = params.get("bin") === "1";
   window.__viewer = { canvas, gl, fitToDrawn,           // QA/debug hook (block-scoped vars)
                       get renderer() { return renderer; },
-                      get skeleton() { return skeleton; } };
+                      get skeleton() { return skeleton; },
+                      get animationState() { return animationState; },
+                      setPaused: function (v) { paused = !!v; },
+                      seek: function (t) {
+                        if (!animationState) return;
+                        animationState.trackTime = t;   // entries derive trackTime from the state
+                        animationState.update(0);
+                        animationState.apply(skeleton);
+                      } };
   const animSel = document.getElementById("anim");
   const seek = document.getElementById("seek");
   const timeLbl = document.getElementById("time");
@@ -199,9 +205,45 @@ if (imgSrc) {
     i = (i + names.length) % names.length;
     animSel.selectedIndex = i;
     paused = false;
-    playBtn.innerHTML = "&#9199;";
+    playBtn.innerHTML = "&#10074;&#10074;";
     animationState.setAnimation(0, names[i], loopCb.checked);
     seek.value = 0;
+  }
+
+  function wireView() {
+    // wheel: zoom about the cursor - drag: pan - double-click: fit
+    const cam = renderer.camera;
+    canvas.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      const z0 = cam.zoom;
+      const nz = Math.max(z0 / 8, Math.min(z0 * 8, z0 * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      const rect = canvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const gx = sx - canvas.width / 2, gy = (canvas.height - sy) - canvas.height / 2;
+      const wx = gx * z0 + cam.position.x, wy = gy * z0 + cam.position.y;
+      cam.zoom = nz;
+      cam.position.set(wx - gx * nz, wy - gy * nz, 0);
+      cam.update();
+    }, { passive: false });
+    let pan = null;
+    canvas.addEventListener("pointerdown", function (e) {
+      pan = [e.clientX, e.clientY, cam.position.x, cam.position.y];
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* synthetic events */ }
+      canvas.style.cursor = "grabbing";
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!pan) return;
+      const rect = canvas.getBoundingClientRect();
+      cam.position.set(pan[2] - (e.clientX - pan[0]) * (canvas.width / rect.width) * cam.zoom,
+                       pan[3] + (e.clientY - pan[1]) * (canvas.height / rect.height) * cam.zoom, 0);
+      cam.update();
+    });
+    canvas.addEventListener("pointerup", function () {
+      pan = null;
+      canvas.style.cursor = "grab";
+    });
+    canvas.addEventListener("dblclick", fitCamera);
   }
 
   function wireControls(data) {
@@ -218,10 +260,8 @@ if (imgSrc) {
     }
     playBtn.onclick = function () {
       paused = !paused;
-      playBtn.innerHTML = paused ? "&#9654;" : "&#9199;";
+      playBtn.innerHTML = paused ? "&#9654;&#65038;" : "&#10074;&#10074;";
     };
-    document.getElementById("prev").onclick = function () { setAnim(animSel.selectedIndex - 1); };
-    document.getElementById("next").onclick = function () { setAnim(animSel.selectedIndex + 1); };
     animSel.onchange = function () { setAnim(animSel.selectedIndex); };
     seek.addEventListener("pointerdown", function () { seeking = true; });
     seek.addEventListener("pointerup", function () { seeking = false; });
@@ -258,6 +298,8 @@ if (imgSrc) {
     skeleton = new spine.Skeleton(data);
     animationState = new spine.AnimationState(new spine.AnimationStateData(data));
     wireControls(data);
+    wireView();
+    document.getElementById("zoomhint").hidden = false;
     msg.style.display = "none";
     fitCamera();
   }
@@ -282,7 +324,7 @@ if (imgSrc) {
         if (!e.loop && e.trackTime >= d) {          // end of a one-shot: hold the last pose
           e.trackTime = d;
           paused = true;
-          playBtn.innerHTML = "&#9654;";
+          playBtn.innerHTML = "&#9654;&#65038;";
         }
         const t = e.loop ? e.trackTime % d : Math.min(e.trackTime, d);   // looped trackTime grows past d
         if (!seeking) seek.value = d > 0 ? Math.round(1000 * t / d) : 0;

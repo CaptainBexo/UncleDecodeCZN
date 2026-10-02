@@ -194,6 +194,14 @@ class ViewerDock(QWidget):
         except Exception:  # noqa: BLE001 - no trio beside it: plain image then
             return False
 
+    def _pack_base(self, path: str) -> str:
+        """A pack model whose name matches this file's stem, e.g.
+        1017.png -> 'face/portrait/1017' (load_mod_spine swaps the image in)."""
+        stem = os.path.splitext(os.path.basename(path))[0].lower()
+        hits = [n for n in data.spine_files()
+                if os.path.splitext(os.path.basename(n))[0].lower() == stem]
+        return hits[0][: -len(".scsp")] if hits else ""
+
     def load_text(self) -> None:
         text = self.path.text().strip()
         if not text:
@@ -207,9 +215,14 @@ class ViewerDock(QWidget):
             if ext in (".skel", ".json", ".atlas"):
                 self.load_trio(text)
                 return
-            if ext in IMAGE_EXT and self._has_trio(text):
-                self.load_trio(text)                 # an image syncs with its Spine siblings
-                return
+            if ext in IMAGE_EXT or ext == ".sct":
+                if self._has_trio(text):
+                    self.load_trio(text)             # an image syncs with its Spine siblings
+                    return
+                base = self._pack_base(text)         # ...or with the game's own model
+                if base:
+                    self.load_mod_spine(base, text)  # play it with this image as its page
+                    return
             self.load_image(text)
             return
         mods = self._mod_matches(text)

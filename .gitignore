@@ -11,3 +11,4 @@ extract/
 decoded/*
 !decoded/names_all.json
 ui/shots/_spine/
+ui/qa_out.txt

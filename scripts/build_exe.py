@@ -83,8 +83,11 @@ Using it
          swapped in as the atlas page;
        - a game model by pack path (e.g. "model/1041.scsp" or just "1041");
        - standard Spine files from disk: a .skel / .json / .atlas file, or a
-         folder containing them (plus the .png pages).
-     Play, timeline, speed and loop controls sit at the bottom; "Reload"
+         folder containing them (plus the .png pages);
+       - an image named after a game model (e.g. 1017.png): that model's
+         animation plays with your image swapped in as its texture.
+     The transport bar has play/pause, a timeline, speed and loop; the wheel
+     zooms, dragging pans and a double-click refits the view. "Reload"
      re-reads the current files - handy right after editing a mod.
      Preview only - nothing is written to the game.
   5. CLOSE THE GAME before applying (the tool refuses to write while it runs).

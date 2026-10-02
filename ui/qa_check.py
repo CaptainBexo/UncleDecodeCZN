@@ -449,6 +449,44 @@ def main() -> None:
     check("path bar loads a pack model (spine mode)",
           "m=model__1041" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
+    for _ in range(120):                 # wait until the page script has run setup() (hook + wiring)
+        _r = {}
+        win.dock.panel.view.page().runJavaScript(
+            "!!(window.__viewer && window.__viewer.animationState)", lambda v: _r.update(v=v))
+        for _ in range(4):
+            app.processEvents()
+            time.sleep(0.02)
+        if _r.get("v"):
+            break
+        time.sleep(0.05)
+    res = {}
+    win.dock.panel.view.page().runJavaScript("""
+(function(){
+  const v = window.__viewer, c = v.canvas, cam = v.renderer.camera;
+  const btns = document.querySelectorAll('#bar button').length;
+  const z0 = cam.zoom, x0 = cam.position.x, y0 = cam.position.y;
+  const r = c.getBoundingClientRect();
+  c.dispatchEvent(new WheelEvent('wheel', {deltaY:-120, clientX:r.left+r.width/2,
+                                           clientY:r.top+r.height/2, bubbles:true, cancelable:true}));
+  const z1 = cam.zoom;
+  c.dispatchEvent(new PointerEvent('pointerdown', {clientX:100, clientY:100, pointerId:7, bubbles:true}));
+  c.dispatchEvent(new PointerEvent('pointermove', {clientX:160, clientY:130, pointerId:7, bubbles:true}));
+  c.dispatchEvent(new PointerEvent('pointerup', {pointerId:7, bubbles:true}));
+  return JSON.stringify({btns:btns, z0:z0, z1:z1,
+                         dx:+(cam.position.x-x0).toFixed(2), dy:+(cam.position.y-y0).toFixed(2)});
+})()
+""", lambda v: res.update(v=v))
+    for _ in range(40):
+        app.processEvents()
+        time.sleep(0.02)
+    import json as _json
+    st = _json.loads(res.get("v") or "{}")
+    check("transport keeps only the play/pause button",
+          st.get("btns") == 1, "buttons=%s" % st.get("btns"))
+    check("wheel zooms in about the cursor", st.get("z1", 0) > st.get("z0", 0) * 1.1,
+          "z %s -> %s" % (st.get("z0"), st.get("z1")))
+    check("drag pans the camera", st.get("dx", 0) < -5 and st.get("dy", 0) > 5,
+          "dx=%s dy=%s" % (st.get("dx"), st.get("dy")))
     # local standard trio (.skel/.json + .atlas + pages) + mod page override
     import spine_prep
     trio_src = tempfile.mkdtemp(prefix="czn_qa_trio_")
@@ -510,8 +548,27 @@ def main() -> None:
         check("mod preview plays the portrait spine with the mod page",
               "m=mod_" in win.dock.panel.view.url().toString(),
               win.dock.panel.view.url().toString())
+        win.dock.load_image(m1017.banner)   # plain image first, so the sync changes the url
+        win.dock.path.setText(m1017.banner)
+        url_before = win.dock.panel.view.url().toString()
+        win.dock.load_text()
+        for _ in range(800):
+            app.processEvents()
+            time.sleep(0.02)
+            if win.dock.panel.view.url().toString() != url_before:
+                break
+        check("picking a game-named image syncs the pack model",
+              "m=mod_" in win.dock.panel.view.url().toString()
+              and win.dock.panel.view.url().toString() != url_before,
+              win.dock.panel.view.url().toString())
     else:
         print("  [i] no face/portrait/1017.sct mod found - mod-spine check skipped")
+    _prep = getattr(win.dock, "_prep", None)   # let the async prep finish before later hover checks
+    for _ in range(1200):
+        app.processEvents()
+        if _prep is None or not _prep.isRunning():
+            break
+        time.sleep(0.05)
     win.dock.path.setText("no_such_thing_at_all")
     win.dock.load_text()
     check("unknown path reports honestly in the status",
