@@ -101,7 +101,8 @@ launches normally through STOVE and sees nothing unusual. Image / UI swaps only.
    chip to enable/disable that one mod, the game status line sits under **Revert all**,
    and **Open folder** sits in the top toolbar. Command-line equivalents if you prefer:
    **ApplyMods.bat** (one click; 1-2 s when nothing changed) and **RevertMods.bat**.
-6. Launch the game through **STOVE** as usual. Mods are in-game.
+6. Launch the game through **STOVE** as usual - or press **Run Game** in the tool's
+   sidebar while STOVE runs in the tray. Mods are in-game.
 
 ## Notes
 

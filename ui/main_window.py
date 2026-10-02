@@ -234,15 +234,11 @@ class MainWindow(QWidget):
         os.startfile(self._mods_dir)
 
     def _run_game(self) -> None:
-        """Quick-launch the game through the same loader STOVE uses. Needs STOVE
-        running in the background - the client refuses a bare launch otherwise."""
-        if not data.game_root():
-            self._status("Game folder not found - set it on the Settings page")
-            return
+        """Ask the running STOVE to launch the game (the direct loader is refused
+        by the client's SDK gate). STOVE must be running in the background."""
         try:
-            subprocess.Popen(data.game_launch_cmd(), cwd=data.game_root(),
-                             creationflags=0x08000000)
-            self._status("Game launching... (if nothing happens, start STOVE first)")
+            os.startfile(data.game_launch_uri())
+            self._status("Game launching via STOVE... (first launch takes a moment)")
         except OSError as e:
             self._status(f"Launch failed: {e}")
 

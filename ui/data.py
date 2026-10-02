@@ -238,12 +238,14 @@ def stove_running() -> bool:
     return cznmod.stove_running()
 
 
-def game_launch_cmd() -> list[str]:
-    """The command STOVE itself uses to start the game (loader + shield arg;
-    cwd must be the game root). A bare launch is refused unless STOVE runs."""
-    root = game_root() or ""
-    return [os.path.join(root, "bin", "ucldr_chaoszeronightmare_gl_loader_x64.exe"),
-            "bin\\ssr-stove-shield.exe"]
+LAUNCH_URI = "sgup://run/STOVE_CHAZERO?auto_action=PrepareAndLaunch"
+
+
+def game_launch_uri() -> str:
+    """STOVE's own launch request. The direct loader cannot be used: the client's
+    SDK gate refuses it ("Please run the game through the launcher") even while
+    STOVE runs - the launcher session has to do the handshake."""
+    return LAUNCH_URI
 
 
 _ROOT: list = []          # [game_root | _NONE] memoized; set_game_dir() / tests clear it

@@ -437,10 +437,9 @@ def main() -> None:
           win.side.run_hint.text())
     win.side.set_stove(False)
     win.side.set_game(False)
-    cmd = data.game_launch_cmd()
-    check("launch cmd = loader + shield arg",
-          cmd[0].endswith("ucldr_chaoszeronightmare_gl_loader_x64.exe")
-          and cmd[1] == "bin\\ssr-stove-shield.exe", str(cmd))
+    check("launch uri = STOVE protocol",
+          data.game_launch_uri() == "sgup://run/STOVE_CHAZERO?auto_action=PrepareAndLaunch",
+          data.game_launch_uri())
     check("qss: Run Game green style present", "#runGameBtn" in qss and theme.GAME_ON in qss)
 
     # ---------- game-running state ----------
