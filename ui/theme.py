@@ -107,13 +107,6 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 #ghostBtn:hover {{ background: {HOVER_WASH}; color: {TEXT}; }}
 #ghostBtn:disabled {{ color: #555555; }}
 
-#runGameBtn {{ background: #1A1A1A; border: 1px solid {GAME_ON}; border-radius: {R_PRIMARY}px;
-               color: {GAME_ON}; font-size: {F_BTN}px; font-weight: 600; }}
-#runGameBtn:hover {{ background: #222222; }}
-#runGameBtn:pressed {{ background: #2A2A2A; }}
-#runGameBtn:disabled {{ color: #4A4A4A; border-color: #3A3A3A; background: #161616; }}
-#runHint {{ font-size: 10px; color: {TEXT_MUTED}; }}
-
 #outlineBtn {{ background: transparent; border: 1px solid {OUTLINE_BORDER}; border-radius: 18px;
                color: {TEXT_STRONG}; font-size: {F_BTN}px; font-weight: 500; padding: 0 16px; }}
 #outlineBtn:hover {{ background: {HOVER_WASH}; }}

@@ -117,7 +117,6 @@ class MainWindow(QWidget):
         self.info.sortChanged.connect(self._set_sort)
         self.side.applyClicked.connect(lambda: self._run_cli(["apply"], "Apply mods"))
         self.side.revertClicked.connect(self._revert_all)
-        self.side.runGameClicked.connect(self._run_game)
         self.side.pageChanged.connect(self._set_page)
         self.view.chipClicked.connect(self._toggle_mod)
         self.view.filesDropped.connect(self._add_paths)
@@ -232,23 +231,6 @@ class MainWindow(QWidget):
     def _open_mods(self) -> None:
         os.makedirs(self._mods_dir, exist_ok=True)
         os.startfile(self._mods_dir)
-
-    def _run_game(self) -> None:
-        """Ask the running STOVE to launch the game (the direct loader is refused
-        by the client's SDK gate). STOVE must be running in the background."""
-        try:
-            os.startfile(data.game_launch_uri())
-        except OSError as e:
-            self._status(f"Launch failed: {e}")
-            return
-        self._status("Game launching via STOVE... (can take up to ~2 min)")
-        QTimer.singleShot(150_000, self._check_launch)
-
-    def _check_launch(self) -> None:
-        """If STOVE never brought the game up, its launcher tab is likely stuck."""
-        if not data.game_running():
-            self._status("STOVE did not launch the game - right-click the STOVE tray "
-                         "icon, Exit, reopen it, then press Run Game again")
 
     def _pick_game_dir(self) -> None:
         """Browse for the game folder (only offered while none was found)."""
@@ -527,7 +509,6 @@ class MainWindow(QWidget):
 
     def _poll_game(self) -> None:
         self.side.set_game(data.game_running())
-        self.side.set_stove(data.stove_running())
 
     # ---------- frameless window: resize grips + maximise state ----------
 

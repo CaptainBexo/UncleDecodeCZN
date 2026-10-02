@@ -74,9 +74,8 @@ Using it
          {"name": "My mod", "map": {"art.png": "face/portrait/1041.sct"}}
   4. CLOSE THE GAME before applying (the tool refuses to write while it runs).
   5. Press "Apply mods". A new mod shows a "Pending" chip until you do.
-  6. Launch the game through STOVE as usual, or press "Run Game" in the
-     tool's sidebar while STOVE runs in the tray (the game only starts
-     through STOVE - a direct launch is refused by the client).
+  6. Launch the game through STOVE as usual (the game only starts through
+     STOVE - a direct launch shows "please run through the launcher").
 
 Undo / switching mods off
   - Click a mod's status chip to disable it (it moves to Mods\\_disabled).

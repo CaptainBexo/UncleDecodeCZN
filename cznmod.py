@@ -47,7 +47,6 @@ STATE = os.path.join(MODS, ".state.json")
 LOG = os.path.join(MODS, ".log.txt")
 PIDF = os.path.join(MODS, ".watch.pid")
 GAME_EXE = "ssr-stove-shield.exe"
-STOVE_EXE = "STOVE.exe"
 EFFORT = os.environ.get("CZNMOD_EFFORT", "-medium")
 IMG_EXT = (".png", ".webp", ".jpg", ".jpeg", ".modfile")
 
@@ -65,10 +64,6 @@ def _task_running(exe):
 
 def game_running():
     return _task_running(GAME_EXE)
-
-
-def stove_running():
-    return _task_running(STOVE_EXE)
 
 
 def png_target(path):
