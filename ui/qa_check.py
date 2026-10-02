@@ -770,10 +770,21 @@ def main() -> None:
 
     # right-click card menu: Export Asset / Locate Asset
     from PySide6.QtGui import QContextMenuEvent
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QMenu as _QMenu
+
+    def _close_menus():
+        for w in app.topLevelWidgets():
+            if isinstance(w, _QMenu) and w.isVisible():
+                w.close()
+
     got: dict = {}
     win.char_grid.cardMenuRequested.connect(lambda r, p: got.update(row=r))
     ev = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, QPoint(40, 40),
                            win.char_grid.viewport().mapToGlobal(QPoint(40, 40)))
+    # the handler runs a modal menu.exec - on an idle desktop nothing dismisses it
+    QTimer.singleShot(300, _close_menus)
+    QTimer.singleShot(1200, _close_menus)
     QApplication.sendEvent(win.char_grid.viewport(), ev)   # the real delivery path
     check("right-click on a card requests the menu", got.get("row") == 0, str(got))
     calls2: list = []
