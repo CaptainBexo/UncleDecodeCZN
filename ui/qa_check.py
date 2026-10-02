@@ -537,6 +537,21 @@ def main() -> None:
           win.dock.panel.view.url().toString() != url_before
           and "m=local_" in win.dock.panel.view.url().toString(),
           win.dock.panel.view.url().toString())
+    _md = QMimeData()
+    _md.setUrls([QUrl.fromLocalFile(os.path.join(trio_src, "1041.png"))])
+    url_before = win.dock.panel.view.url().toString()
+    _ev = QDropEvent(QPointF(60, 60), Qt.DropAction.CopyAction, _md,
+                     Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    win.dock.dropEvent(_ev)              # Qt's OS drag state can't be faked; the handler is ours
+    for _ in range(600):
+        app.processEvents()
+        time.sleep(0.02)
+        if win.dock.panel.view.url().toString() != url_before:
+            break
+    check("dropping a file on the viewer loads it",
+          win.dock.panel.view.url().toString() != url_before
+          and "m=local_" in win.dock.panel.view.url().toString(),
+          win.dock.panel.view.url().toString())
     ov_png = os.path.join(dock_dir, "override.png")
     Image.new("RGBA", (64, 40), (10, 200, 10, 255)).save(ov_png)
     ov_out = tempfile.mkdtemp(prefix="czn_qa_ov_")

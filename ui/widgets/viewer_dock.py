@@ -108,7 +108,8 @@ class ViewerDock(QWidget):
         self.path.setPlaceholderText("Mod name, model/1041.scsp, or a .skel/.atlas/.png...")
         self.path.setToolTip("Type a mod name, a pack path like model/1041.scsp, "
                              "or a local .skel/.atlas/.png path, then press Enter. "
-                             "The Load button opens a file picker instead.")
+                             "The Load button opens a file picker; dropping a file on "
+                             "the window loads it too.")
         self.path.returnPressed.connect(self.load_text)
         row.addWidget(self.path, 1)
         self.load_btn = QPushButton("Load", self)
@@ -135,9 +136,27 @@ class ViewerDock(QWidget):
 
         self.panel = SpinePanel(data.SPINE_CACHE, self)
         lay.addWidget(self.panel, 1)
+        self.panel.view.setAcceptDrops(False)   # drops over the viewport reach the dock below
+        self.path.setAcceptDrops(False)         # (a QLineEdit would paste the file:// URL instead)
+        self.setAcceptDrops(True)
 
         self._grip = QSizeGrip(self)          # frameless windows need a resize handle
         self._grip.setFixedSize(16, 16)
+
+    # ---------- drag & drop ----------
+
+    def dragEnterEvent(self, e) -> None:
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e) -> None:
+        for url in e.mimeData().urls():
+            path = url.toLocalFile()
+            if path:
+                self.path.setText(path)
+                self.load_text()             # same routing: trio sync / pack model / image
+                e.acceptProposedAction()
+                return
 
     def resizeEvent(self, e) -> None:
         super().resizeEvent(e)
