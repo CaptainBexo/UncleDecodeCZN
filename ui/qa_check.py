@@ -322,6 +322,18 @@ def main() -> None:
     check("char grid cell >= min width",
           win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,
           str(win.char_grid.gridSize()))
+    orig_cols = win.char_grid.cols_fixed
+    win.char_grid.set_columns(6)
+    app.processEvents()
+    gs6 = win.char_grid.gridSize()
+    per_row = (win.char_grid.width() - theme.SCROLLBAR_W - 2 + theme.GRID_GAP) // gs6.width()
+    check("fixed 6 columns: exactly 6 per row", per_row == 6,
+          f"cell {gs6.width()} per_row {per_row}")
+    win.char_grid.set_columns(0)
+    app.processEvents()
+    check("Auto columns restored", win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,
+          str(win.char_grid.gridSize()))
+    win.char_grid.set_columns(orig_cols)
     menu["Mods"].click()
     for _ in range(3):
         app.processEvents()

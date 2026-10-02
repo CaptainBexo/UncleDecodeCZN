@@ -12,9 +12,9 @@ import queue
 import subprocess
 import threading
 
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
-                               QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+                               QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 import data
@@ -305,10 +305,21 @@ class MainWindow(QWidget):
         info.setSpacing(12)
         info.addWidget(self.char_count)
         info.addWidget(self.char_hint, 1)
+        self.char_cols_btn = QPushButton("Columns: Auto", page)
+        self.char_cols_btn.setObjectName("sortBtn")
+        self.char_cols_btn.setFixedHeight(28)
+        self.char_cols_btn.setIcon(theme.icon("chevron-down", 14))
+        self.char_cols_btn.setIconSize(QSize(14, 14))
+        self.char_cols_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.char_cols_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.char_cols_btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.char_cols_btn.clicked.connect(self._char_columns)
+        info.addWidget(self.char_cols_btn)
         lay.addLayout(info)
         lay.addSpacing(12)
 
         self.char_grid = CharGrid(page)
+        self.char_cols_btn.setText(f"Columns: {self.char_grid.cols_fixed or 'Auto'}")
         lay.addWidget(self.char_grid, 1)
         return page
 
@@ -346,6 +357,16 @@ class MainWindow(QWidget):
 
     def _char_thumb_ready(self, pid: int) -> None:
         self.char_grid.thumb_ready(pid)
+
+    def _char_columns(self) -> None:
+        menu = QMenu(self)
+        for label in ["Auto"] + [str(i) for i in range(3, 11)]:
+            menu.addAction(label)
+        chosen = menu.exec(self.char_cols_btn.mapToGlobal(
+            QPoint(0, self.char_cols_btn.height() + 4)))
+        if chosen:
+            self.char_cols_btn.setText(f"Columns: {chosen.text()}")
+            self.char_grid.set_columns(0 if chosen.text() == "Auto" else int(chosen.text()))
 
     def closeEvent(self, e) -> None:
         self.char_loader.stop()

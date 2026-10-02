@@ -11,7 +11,7 @@ import os
 import threading
 
 from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QObject, QRectF,
-                            QSize, Qt, QVariantAnimation, Signal)
+                            QSettings, QSize, Qt, QVariantAnimation, Signal)
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter, QPixmap,
                            QStandardItem, QStandardItemModel)
 from PySide6.QtWidgets import QFrame, QListView, QStyledItemDelegate
@@ -192,14 +192,15 @@ class CharDelegate(QStyledItemDelegate):
         p.setBrush(blend(theme.BG_CARD, theme.BG_CARD_HOVER, t))
         p.drawRoundedRect(card, theme.R_CARD, theme.R_CARD)
 
-        # portrait, fit inside the image area
+        # portrait, fit inside the image area (panel behind keeps square icons
+        # looking deliberate next to full-bleed portrait crops)
         img_h = h - BODY_H
+        p.setBrush(QColor(theme.BG_CHIP))
+        p.drawRoundedRect(QRectF(card.x(), card.y(), w, img_h), theme.R_CARD, theme.R_CARD)
         pm = self.thumb(r["id"], int(w), int(img_h), self._view.devicePixelRatioF())
         if pm is not None:
             p.drawPixmap(int(card.x()), int(card.y()), pm)
         else:
-            p.setBrush(QColor(theme.BG_CHIP))
-            p.drawRoundedRect(QRectF(card.x(), card.y(), w, img_h), theme.R_CARD, theme.R_CARD)
             p.setFont(self.f_title)
             p.setPen(QColor(theme.TEXT_MUTED))
             p.drawText(QRectF(card.x(), card.y(), w, img_h), Qt.AlignmentFlag.AlignCenter,
@@ -254,6 +255,8 @@ class CharGrid(QListView):
         self.card_delegate = CharDelegate(self)
         self.setItemDelegate(self.card_delegate)
         self.rows: list[dict] = []
+        # 0 = adaptive columns; 3..10 = fixed count (persisted across runs)
+        self.cols_fixed = int(QSettings("CZN_MMMI", "tool").value("char_columns", 0) or 0)
         self.item_model = QStandardItemModel(0, 1, self)
         self.setModel(self.item_model)
 
@@ -271,13 +274,24 @@ class CharGrid(QListView):
     def thumb_ready(self, pid: int) -> None:
         self.card_delegate.thumb_ready(pid)
 
+    def set_columns(self, n: int) -> None:
+        """0 = adaptive (auto); 3..10 = fixed column count (persisted)."""
+        self.cols_fixed = n
+        QSettings("CZN_MMMI", "tool").setValue("char_columns", n)
+        self.relayout()
+
     def relayout(self) -> None:
         # same rule as the mod grid: reserve the scrollbar + 2 px slack so the
         # column count cannot ping-pong with scrollbar visibility.
         vw = self.width() - theme.SCROLLBAR_W - 2
-        n = max(3, (vw + theme.GRID_GAP) // (CARD_MIN_W + theme.GRID_GAP))
-        while n > 3 and (vw - n * theme.GRID_GAP) // n < CARD_MIN_W:
-            n -= 1
+        if self.cols_fixed:
+            # ponytail: 60px/card floor keeps a big column count renderable on a
+            # small window; switch to a min-width + h-scroll if cards matter more
+            n = max(2, min(self.cols_fixed, max(2, vw // 60)))
+        else:
+            n = max(3, (vw + theme.GRID_GAP) // (CARD_MIN_W + theme.GRID_GAP))
+            while n > 3 and (vw - n * theme.GRID_GAP) // n < CARD_MIN_W:
+                n -= 1
         w = (vw - n * theme.GRID_GAP) // n
         h = round(w * 1.77) + BODY_H            # half crops are 260x460
         cell = QSize(w + theme.GRID_GAP, h + theme.GRID_GAP)
