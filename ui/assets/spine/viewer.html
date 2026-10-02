@@ -103,7 +103,8 @@ if (imgSrc) {
   imgEl.src = imgSrc;
 } else {
   /* ---------- spine mode: media player ---------- */
-  const gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: true });
+  const gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: true,
+                                          preserveDrawingBuffer: true });
   if (!gl) { fail("WebGL is not available in this environment."); }
   const renderer = new spine.webgl.SceneRenderer(canvas, gl);
   const manager = new spine.webgl.AssetManager(gl, model + "/");
@@ -283,7 +284,10 @@ if (imgSrc) {
 
   function setup() {
     if (manager.hasErrors && manager.hasErrors()) {
-      fail("Asset load failed:\n" + manager.getErrors().join("\n"));
+      const errs = manager.getErrors();          /* spine-webgl 3.8: {path: message} */
+      fail("Asset load failed:\n" + Object.keys(errs).map(function (k) {
+        return k + ": " + errs[k];
+      }).join("\n"));
       return;
     }
     const atlas = manager.get("skeleton.atlas");

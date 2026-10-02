@@ -488,6 +488,30 @@ def main() -> None:
           "z %s -> %s" % (st.get("z0"), st.get("z1")))
     check("drag pans the camera", st.get("dx", 0) < -5 and st.get("dy", 0) > 5,
           "dx=%s dy=%s" % (st.get("dx"), st.get("dy")))
+    _labels = [a.text() for a in win.dock.panel.view._menu().actions() if not a.isSeparator()]
+    check("viewer right-click menu is the trimmed set",
+          _labels == ["Back", "Forward", "Reload", "Save image", "Copy image"], str(_labels))
+    from PySide6.QtWidgets import QFileDialog as _QFD
+    _orig_save = _QFD.getSaveFileName
+    _dest = os.path.join(TMP, "viewer_save.png")
+    if os.path.exists(_dest):
+        os.remove(_dest)
+    _QFD.getSaveFileName = staticmethod(lambda *a, **k: (_dest, "PNG (*.png)"))
+    try:
+        win.dock.panel.view._save_image()          # the menu item's slot
+        for _ in range(160):
+            app.processEvents()
+            time.sleep(0.05)
+            if os.path.exists(_dest) and os.path.getsize(_dest) > 1000:
+                break
+        _ok = os.path.exists(_dest) and os.path.getsize(_dest) > 1000
+        _dim = ""
+        if _ok:
+            from PIL import Image as _Im
+            _dim = "%dx%d" % _Im.open(_dest).size
+        check("viewer 'Save image' writes the canvas to the chosen path", _ok, _dim)
+    finally:
+        _QFD.getSaveFileName = _orig_save
     import ctypes as _ct
     import ctypes.wintypes as _wt
     _u32 = _ct.windll.user32
@@ -700,9 +724,11 @@ def main() -> None:
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
     from PySide6.QtGui import QHelpEvent
     win._show_dock(False)                   # the parked dock can cover the main toolbar
+    win.raise_()                            # text_at() asks widgetAt(): ours must be the top window,
+    win.activateWindow()                    # otherwise another app (real user) answers with no tip
     for _ in range(5):
         app.processEvents()
-        time.sleep(0.02)
+        time.sleep(0.05)
     menu["Mods"].click()                    # back on the mods page: cursor coords must hit it
     for _ in range(3):
         app.processEvents()
