@@ -157,6 +157,43 @@ class ViewerDock(QWidget):
         super().resizeEvent(e)
         self._grip.move(self.width() - 16, self.height() - 16)
 
+    def nativeEvent(self, event_type, message):
+        """Windows hit-test: a frameless window gets real resize borders on every
+        edge/corner (with the native cursors, drag loop and snap)."""
+        if event_type in (b"windows_generic_MSG", "windows_generic_MSG") and not self.isMaximized():
+            import ctypes as _ct
+            from ctypes import wintypes, POINTER, cast
+            msg = cast(int(message), POINTER(wintypes.MSG)).contents
+            if msg.message == 0x0084:                     # WM_NCHITTEST
+                x = _ct.c_short(msg.lParam & 0xFFFF).value
+                y = _ct.c_short((msg.lParam >> 16) & 0xFFFF).value
+                r = wintypes.RECT()
+                _ct.windll.user32.GetWindowRect(int(self.winId()), _ct.byref(r))
+                b = max(5, int(6 * self.devicePixelRatioF() + 0.5))
+                left = x < r.left + b
+                right = x >= r.right - b
+                top = y < r.top + b
+                bottom = y >= r.bottom - b
+                if left or right or top or bottom:
+                    if top and left:
+                        ht = 13                               # HTTOPLEFT
+                    elif top and right:
+                        ht = 14                               # HTTOPRIGHT
+                    elif bottom and left:
+                        ht = 16                               # HTBOTTOMLEFT
+                    elif bottom and right:
+                        ht = 17                               # HTBOTTOMRIGHT
+                    elif left:
+                        ht = 10                               # HTLEFT
+                    elif right:
+                        ht = 11                               # HTRIGHT
+                    elif top:
+                        ht = 12                               # HTTOP
+                    else:
+                        ht = 15                               # HTBOTTOM
+                    return True, ht
+        return super().nativeEvent(event_type, message)
+
     # ---------- loads ----------
 
     def show_mod(self, mod: data.Mod) -> None:

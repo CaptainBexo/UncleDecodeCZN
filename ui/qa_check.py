@@ -488,6 +488,21 @@ def main() -> None:
           "z %s -> %s" % (st.get("z0"), st.get("z1")))
     check("drag pans the camera", st.get("dx", 0) < -5 and st.get("dy", 0) > 5,
           "dx=%s dy=%s" % (st.get("dx"), st.get("dy")))
+    import ctypes as _ct
+    import ctypes.wintypes as _wt
+    _u32 = _ct.windll.user32
+    _hwnd = int(win.dock.winId())
+    _r = _wt.RECT()
+    _u32.GetWindowRect(_hwnd, _ct.byref(_r))
+    _cx, _cy = (_r.left + _r.right) // 2, (_r.top + _r.bottom) // 2
+
+    def _ht(x, y):
+        return _u32.SendMessageW(_hwnd, 0x0084, 0, ((y & 0xFFFF) << 16) | (x & 0xFFFF))
+
+    _codes = [_ht(_r.right - 2, _r.top + 2), _ht(_r.left + 2, _r.bottom - 2),
+              _ht(_r.left + 2, _cy), _ht(_cx, _r.bottom - 2), _ht(_cx, _cy)]
+    check("frameless dock resizes from every edge and corner (WM_NCHITTEST)",
+          _codes == [14, 16, 10, 15, 1], str(_codes))
     # page override + premultiply correctness
     import spine_prep
     prep_src = tempfile.mkdtemp(prefix="czn_qa_prep_")
@@ -634,62 +649,41 @@ def main() -> None:
           mtip == _STIPS[win.view.mods[0].status] and "face/" not in mtip, mtip)
 
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
-    from PySide6.QtGui import QHelpEvent, QCursor
-    import ctypes as _ct
-
-    class _LII(_ct.Structure):
-        _fields_ = [("cbSize", _ct.c_uint), ("dwTime", _ct.c_uint)]
-
-    _li = _LII()
-    _li.cbSize = _ct.sizeof(_LII)
-    _idle_ms = 99999
-    if _ct.windll.user32.GetLastInputInfo(_ct.byref(_li)):
-        _idle_ms = _ct.windll.kernel32.GetTickCount() - _li.dwTime
+    from PySide6.QtGui import QHelpEvent
     win._show_dock(False)                   # the parked dock can cover the main toolbar
     for _ in range(5):
         app.processEvents()
         time.sleep(0.02)
-    if _idle_ms < 3000:
-        # a live desktop fights synthetic hovers (and we would move the user's mouse)
-        print("  [i] desktop in use (idle %dms) - hover tooltip checks skipped" % _idle_ms)
-    else:
-        menu["Mods"].click()                # back on the mods page: cursor coords must hit it
-        for _ in range(3):
-            app.processEvents()
-        btn = win.toolbar.refresh
-        QCursor.setPos(btn.mapToGlobal(QPoint(5, 5)))   # the follow timer hides a tip whose pointer is elsewhere
-        for _ in range(10):
-            app.processEvents()
-            time.sleep(0.02)
-        _ok = False
-        for _ in range(6):                   # read before the 16ms poll tick can hide it again
-            QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
-                                                   btn.mapToGlobal(QPoint(5, 5))))
-            app.processEvents()
-            _ok = win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip()
-            if _ok:
-                break
-            time.sleep(0.05)
-        check("float tooltip shows the control tip", _ok,
-              f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
-        rc = win.view.visualRect(win.view.item_model.index(0, 0))
-        lp = rc.center()
-        QCursor.setPos(win.view.viewport().mapToGlobal(lp))
-        for _ in range(10):
-            app.processEvents()
-            time.sleep(0.02)
-        _ok2 = False
-        for _ in range(6):
-            QApplication.sendEvent(win.view.viewport(),
-                                   QHelpEvent(QEvent.Type.ToolTip, lp,
-                                              win.view.viewport().mapToGlobal(lp)))
-            app.processEvents()
-            _ok2 = win._tips.popup.text() == win.view.item_model.item(0).toolTip()
-            if _ok2:
-                break
-            time.sleep(0.05)
-        check("float tooltip resolves model tips on cards", _ok2,
-              win._tips.popup.text().replace("\n", " | "))
+    menu["Mods"].click()                    # back on the mods page: cursor coords must hit it
+    for _ in range(3):
+        app.processEvents()
+    win._tips._poll.stop()                  # the follow timer would hide the tip the moment the
+    btn = win.toolbar.refresh               # user (or our synthetic hover) moves the real cursor
+    _ok = False
+    for _ in range(6):
+        QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
+                                               btn.mapToGlobal(QPoint(5, 5))))
+        app.processEvents()
+        _ok = win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip()
+        if _ok:
+            break
+        time.sleep(0.05)
+    check("float tooltip shows the control tip", _ok,
+          f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
+    rc = win.view.visualRect(win.view.item_model.index(0, 0))
+    lp = rc.center()
+    _ok2 = False
+    for _ in range(6):
+        QApplication.sendEvent(win.view.viewport(),
+                               QHelpEvent(QEvent.Type.ToolTip, lp,
+                                          win.view.viewport().mapToGlobal(lp)))
+        app.processEvents()
+        _ok2 = win._tips.popup.text() == win.view.item_model.item(0).toolTip()
+        if _ok2:
+            break
+        time.sleep(0.05)
+    check("float tooltip resolves model tips on cards", _ok2,
+          win._tips.popup.text().replace("\n", " | "))
     # glide: one follow tick moves part of the way toward the pointer (not a jump)
     from widgets import float_tip as ft
 
