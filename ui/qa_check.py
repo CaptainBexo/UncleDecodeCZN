@@ -382,6 +382,30 @@ def main() -> None:
           mtip.startswith(win.view.mods[0].name)
           and len(mtip) > len(win.view.mods[0].name) + 4
           and ("chip" in mtip or "Apply" in mtip), mtip.replace("\n", " | "))
+
+    # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
+    from PySide6.QtGui import QHelpEvent
+    menu["Mods"].click()                # back on the mods page: cursor coords must hit it
+    for _ in range(3):
+        app.processEvents()
+    btn = win.toolbar.refresh
+    QApplication.sendEvent(btn, QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5),
+                                           btn.mapToGlobal(QPoint(5, 5))))
+    check("float tooltip shows the control tip",
+          win._tips.popup.isVisible() and win._tips.popup.text() == btn.toolTip(),
+          f"{win._tips.popup.isVisible()} {win._tips.popup.text()!r}")
+    rc = win.view.visualRect(win.view.item_model.index(0, 0))
+    lp = rc.center()
+    QApplication.sendEvent(win.view.viewport(),
+                           QHelpEvent(QEvent.Type.ToolTip, lp,
+                                      win.view.viewport().mapToGlobal(lp)))
+    check("float tooltip resolves model tips on cards",
+          win._tips.popup.text() == win.view.item_model.item(0).toolTip(),
+          win._tips.popup.text().replace("\n", " | "))
+    QApplication.sendEvent(win, QHelpEvent(QEvent.Type.ToolTip, QPoint(2, 2),
+                                           win.mapToGlobal(QPoint(2, 2))))
+    check("float tooltip hides when nothing is described",
+          not win._tips.popup.isVisible(), str(win._tips.popup.isVisible()))
     win.char_grid.set_columns(0)
     app.processEvents()
     check("Auto columns restored", win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,

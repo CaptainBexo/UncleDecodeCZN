@@ -22,6 +22,7 @@ FILES = [
     "ui/widgets/sidebar.py",
     "ui/widgets/title_bar.py",
     "ui/widgets/empty_state.py",
+    "ui/widgets/float_tip.py",
     "ui/assets",
     "scripts/czn_pack.py",
     "scripts/char_catalog.py",

@@ -25,6 +25,7 @@ from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
 from widgets.mod_delegate import ModListView
 from widgets.sidebar import Sidebar
+from widgets import float_tip
 from widgets.title_bar import DragRow, WindowButtons
 
 GRIP = 6          # resize zone along the window edges (columns cover the whole window)
@@ -45,6 +46,7 @@ class MainWindow(QWidget):
         # ring is reserved for Tab navigation (all buttons use Qt.TabFocus).
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         QApplication.instance().installEventFilter(self)   # resize cursor + edge press
+        self._tips = float_tip.TooltipController.install(QApplication.instance())
         QApplication.instance().focusChanged.connect(self._focus_changed)
         self._tab_nav = False      # True while the user is navigating with Tab
 
