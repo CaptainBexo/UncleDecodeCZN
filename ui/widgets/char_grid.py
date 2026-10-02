@@ -269,6 +269,8 @@ class CharGrid(QListView):
         for r in rows:
             item = QStandardItem(str(r["id"]))
             item.setEditable(False)
+            item.setToolTip(f"{r['name']} - {r['id']}\n{r['label']} · {r['assets']} assets"
+                            "\nRight-click a card: Export / Locate assets")
             self.item_model.appendRow(item)
         self.relayout()
         self.viewport().update()

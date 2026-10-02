@@ -159,7 +159,8 @@ class MainWindow(QWidget):
         labels = cats
         if self._cat not in labels:
             self._cat = "All"
-        self.toolbar.chips.set_labels(labels, self._cat)
+        self.toolbar.chips.set_labels(labels, self._cat,
+                                      "Filter by category (click again to clear)")
         mods = self._pool()
         if self._sort == "Newest":
             mods = sorted(mods, key=lambda m: m.mtime, reverse=True)
@@ -284,13 +285,15 @@ class MainWindow(QWidget):
         self.char_search.setObjectName("searchBox")
         self.char_search.setFixedSize(300, 36)
         self.char_search.setPlaceholderText("Search name or ID...")
+        self.char_search.setToolTip("Search by character name, codename or id")
         self.char_search.setClearButtonEnabled(True)
         self.char_search.addAction(theme.icon("search", 16, theme.TEXT_MUTED),
                                    QLineEdit.ActionPosition.LeadingPosition)
         self.char_search.textChanged.connect(self._char_filter)
         rl.addWidget(self.char_search)
         self.char_chips = FilterChips(row)
-        self.char_chips.set_labels(["Playable", "Support", "Other"])
+        self.char_chips.set_labels(["Playable", "Support", "Other"],
+                                   tip="Filter by group (click again for all)")
         self.char_chips.catChanged.connect(self._char_filter)
         rl.addWidget(self.char_chips, 1)
         lay.addWidget(row)
@@ -311,6 +314,7 @@ class MainWindow(QWidget):
         self.char_cols_btn.setObjectName("sortBtn")
         self.char_cols_btn.setFixedHeight(28)
         self.char_cols_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.char_cols_btn.setToolTip("Cards per row: Auto or a fixed count")
         self.char_cols_btn.setIcon(theme.icon("chevron-down", 14))
         self.char_cols_btn.setIconSize(QSize(14, 14))
         self.char_cols_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -455,6 +459,7 @@ class MainWindow(QWidget):
                 self._game_browse = QPushButton("Browse...", row)
                 self._game_browse.setObjectName("outlineBtn")
                 self._game_browse.setFixedHeight(30)
+                self._game_browse.setToolTip("Locate the Chaos Zero Nightmare install folder")
                 self._game_browse.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._game_browse.clicked.connect(self._pick_game_dir)
                 self._game_browse.setVisible(not root)

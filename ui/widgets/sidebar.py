@@ -148,6 +148,7 @@ class Sidebar(QWidget):
         self._effect = QGraphicsOpacityEffect(block)
         self._effect.setOpacity(1.0)
         block.setGraphicsEffect(self._effect)
+        self._apply_enabled()       # initial tooltips + enabled state (no 5 s wait)
 
     # ---------- state ----------
 
@@ -167,10 +168,11 @@ class Sidebar(QWidget):
     def _apply_enabled(self) -> None:
         # Writing needs the game CLOSED: while it runs the whole block is disabled.
         ok = not self._running and not self._busy
-        reason = "Close the game before applying mods" if self._running else ""
-        for b in (self.primary, self.revert):
-            b.setEnabled(ok)
-            b.setToolTip(reason)
+        why = "Close the game before applying mods" if self._running else ""
+        self.primary.setEnabled(ok)
+        self.primary.setToolTip(why or "Write every mod into the game files")
+        self.revert.setEnabled(ok)
+        self.revert.setToolTip(why or "Restore the original game files and park all mods")
         self._effect.setOpacity(0.5 if self._running else 1.0)
 
     # ---------- helpers ----------

@@ -38,6 +38,9 @@ class TabRow(DragRow):
             b.setFixedHeight(40)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            b.setToolTip({"All": "Every mod, including disabled ones",
+                          "Enabled": "Mods currently applied to the game",
+                          "Disabled": "Mods parked in Mods/_disabled"}.get(label, ""))
             self.group.addButton(b)
             lay.addWidget(b)
         lay.addStretch(1)
@@ -73,7 +76,8 @@ class FilterChips(QWidget):
         elif not any(b.isChecked() for b in self.group.buttons()):
             self.catChanged.emit("All")
 
-    def set_labels(self, labels: list[str], checked: str = "All") -> None:
+    def set_labels(self, labels: list[str], checked: str = "All",
+                   tip: str = "Filter - click again to clear") -> None:
         self._building = True
         for b in self.group.buttons():
             self.group.removeButton(b)
@@ -88,6 +92,7 @@ class FilterChips(QWidget):
             chip.setCheckable(True)
             chip.setFixedHeight(CHIP_H)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip(tip)
             # Chips are recreated on every rebuild; a focusable recreated widget
             # makes Qt shuffle focus between chips (ring lights up by itself).
             chip.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -138,6 +143,7 @@ class Toolbar(QWidget):
         self.open_folder = QPushButton("Open folder", self)
         self.open_folder.setObjectName("outlineBtn")
         self.open_folder.setFixedHeight(ACTION_H)
+        self.open_folder.setToolTip("Show the Mods folder in File Explorer")
         self.open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
         self.open_folder.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.open_folder.clicked.connect(self.openFolderClicked)
@@ -162,6 +168,7 @@ class InfoRow(QWidget):
         self.sort_btn = QPushButton(data.SORTS[0], self)
         self.sort_btn.setObjectName("sortBtn")
         self.sort_btn.setFixedHeight(28)
+        self.sort_btn.setToolTip("Sort the cards")
         self.sort_btn.setIcon(theme.icon("chevron-down", 14))
         self.sort_btn.setIconSize(QSize(14, 14))
         self.sort_btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)  # icon on the right

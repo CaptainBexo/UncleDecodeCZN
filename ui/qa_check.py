@@ -365,6 +365,23 @@ def main() -> None:
     per_row = (win.char_grid.width() - theme.SCROLLBAR_W - 2 + theme.GRID_GAP) // gs6.width()
     check("fixed 6 columns: exactly 6 per row", per_row == 6,
           f"cell {gs6.width()} per_row {per_row}")
+
+    # every control carries a tooltip; the painted grids carry them via the model
+    tips = {"Apply mods": win.side.primary, "Revert all": win.side.revert,
+            "refresh": win.toolbar.refresh, "Open folder": win.toolbar.open_folder,
+            "sort": win.info.sort_btn, "tabs": win.tab_row.group.buttons()[0],
+            "chips": win.toolbar.chips.buttons[0], "search": win.char_search,
+            "columns": win.char_cols_btn, "char chips": win.char_chips.buttons[0]}
+    missing = [k for k, w in tips.items() if not w.toolTip()]
+    check("tooltips: controls described", not missing, str(missing))
+    ctip = win.char_grid.item_model.item(0).toolTip()
+    check("tooltip: char card has name - id + export hint",
+          " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))
+    mtip = win.view.item_model.item(0).toolTip()
+    check("tooltip: mod card has name + action hint",
+          mtip.startswith(win.view.mods[0].name)
+          and len(mtip) > len(win.view.mods[0].name) + 4
+          and ("chip" in mtip or "Apply" in mtip), mtip.replace("\n", " | "))
     win.char_grid.set_columns(0)
     app.processEvents()
     check("Auto columns restored", win.char_grid.gridSize().width() - theme.GRID_GAP >= 150,

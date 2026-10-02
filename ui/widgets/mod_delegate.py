@@ -30,6 +30,13 @@ STATUS_COLORS = {
     "off": (theme.BG_CHIP, theme.TEXT_MUTED),
 }
 
+STATUS_TIPS = {
+    "ok": "Click the chip to disable: reverts the mod and parks it in Mods/_disabled",
+    "pending": "Not applied yet - press Apply mods",
+    "error": "The last apply failed - check the status line",
+    "off": "Click the chip to enable: re-applies the mod",
+}
+
 
 def blend(a: str, b: str, t: float) -> QColor:
     ca, cb = QColor(a), QColor(b)
@@ -310,6 +317,7 @@ class ModListView(QListView):
         for m in mods:
             item = QStandardItem(m.name)
             item.setEditable(False)
+            item.setToolTip("\n".join(x for x in (m.name, m.desc, STATUS_TIPS[m.status]) if x))
             self.item_model.appendRow(item)
         self.relayout()
 
