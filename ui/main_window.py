@@ -479,13 +479,16 @@ class MainWindow(QWidget):
                                      stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                                      errors="replace", creationflags=0x08000000)
                 last = ""
+                err = ""
                 for line in p.stdout:
                     line = line.rstrip("\r\n")
                     if line:
                         last = line
+                    if line.startswith(("[X]", "[!]")):
+                        err = line
                     self._q.put(("log", line))
                 p.wait()
-                self._q.put(("done", p.returncode, last))
+                self._q.put(("done", p.returncode, err or last))
             except Exception as e:
                 self._q.put(("done", -1, f"{type(e).__name__}: {e}"))
 

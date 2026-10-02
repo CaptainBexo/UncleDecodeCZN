@@ -141,6 +141,22 @@ def log(msg):
         fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
 
 
+def _retype_hint(key, path, target):
+    """Actionable hint when a mod has no czn-target tag and its target is unknown."""
+    if png_target(path):
+        return ""
+    stem = os.path.splitext(os.path.basename(path))[0].lower()
+    try:
+        names = json.load(open(os.path.join(HERE, "decoded", "names_all.json")))
+    except Exception:
+        names = []
+    for n in names:
+        if n.lower().endswith("/" + stem + ".sct") or n.lower() == stem + ".sct":
+            return f'  (no czn-target tag - re-tag: stamp "{key}" {n})'
+    return ("  (no czn-target tag and no pack path matches this name - use the "
+            "Char ID tab's Export Asset, or 'list <keyword>')")
+
+
 def apply(quiet=False, verify_all=False):
     """Apply Mods/ -> pack. Skips files whose PNG is unchanged and whose in-pack copy still matches
     what we wrote (verify pass re-checks the pack, catching game repairs). Returns (applied, skipped, failed)."""
@@ -171,7 +187,10 @@ def apply(quiet=False, verify_all=False):
             orig = P.extract(target)
         except KeyError:
             if not quiet:
-                print(f"[X] {key}: pack path not found: {target} (use: cznmod.py list <keyword>)")
+                print(f"[X] {key}: pack path not found: {target}{_retype_hint(key, path, target)}")
+            # remember the failure so the card shows Failed instead of Pending
+            st[key] = {"png_sha1": png_sha, "sct_sha1": None, "target": target,
+                       "game_root": GAME_ROOT}
             fail += 1
             continue
         if entry.get("png_sha1") == png_sha and entry.get("game_root") == GAME_ROOT:
@@ -386,7 +405,11 @@ def cmd_selftest():
         assert got["face/portrait/1041.png"] == "face/portrait/1041.sct", got
         assert got["my renoa art.png"] == "card/unique_1041_01.sct", got
         assert got["MyMod/a.png"] == "effect/lenore_1041_ug_eff_1.sct", got
-        print("[OK] selftest: self-target + loose + pack all detected")
+        # an untagged, non-mirrored name gets an actionable re-tag hint
+        open(os.path.join(tmp, "1017.png"), "wb").write(b"x")
+        hint = _retype_hint("1017.png", os.path.join(tmp, "1017.png"), "1017.sct")
+        assert "face/portrait/1017.sct" in hint, hint
+        print("[OK] selftest: self-target + loose + pack all detected + re-tag hint")
         return 0
     finally:
         MODS = orig
