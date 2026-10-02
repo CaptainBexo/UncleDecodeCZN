@@ -22,7 +22,7 @@ from widgets.mod_delegate import blend
 
 THUMB_CACHE = data.CHAR_THUMB_DIR
 THUMB_H = 300                     # cached png height (half crops are 260x460)
-BODY_H = 58                       # name + id under the image
+BODY_H = 74                       # name + id + export state under the image
 CARD_MIN_W = 150
 HOVER_MS = 130
 BADGE_COLORS = {"Playable": theme.ACCENT, "Support": theme.WARNING, "Other": theme.TEXT_MUTED}
@@ -233,6 +233,26 @@ class CharDelegate(QStyledItemDelegate):
                           fm_small.height()),
                    Qt.AlignmentFlag.AlignLeft,
                    fm_small.elidedText(sub, Qt.TextElideMode.ElideRight, int(w) - 20))
+        # export state: the folder Export Asset writes to (cached on the row)
+        exp = r.get("_export")
+        if exp is None:
+            folder = data.char_asset_dir(r)
+            if os.path.isdir(folder):
+                try:
+                    n = sum(1 for f in os.listdir(folder) if not f.startswith("_"))
+                except OSError:
+                    n = 0
+                exp = "Exported · %d" % n
+            else:
+                exp = ""
+            r["_export"] = exp
+        p.setPen(QColor(theme.ACCENT_SOFT_TEXT if exp else theme.TEXT_MUTED))
+        p.drawText(QRectF(card.x() + 10,
+                          card.y() + img_h + 8 + fm_title.height() + fm_small.height(),
+                          w - 20, fm_small.height()),
+                   Qt.AlignmentFlag.AlignLeft,
+                   fm_small.elidedText(exp or "Not exported", Qt.TextElideMode.ElideRight,
+                                       int(w) - 20))
         p.restore()
 
 
@@ -277,6 +297,12 @@ class CharGrid(QListView):
 
     def thumb_ready(self, pid: int) -> None:
         self.card_delegate.thumb_ready(pid)
+
+    def invalidate_export(self) -> None:
+        """Re-check every card's exported state (call after an Export finishes)."""
+        for r in self.rows:
+            r.pop("_export", None)
+        self.viewport().update()
 
     def set_columns(self, n: int) -> None:
         """0 = adaptive (auto); 3..10 = fixed column count (persisted)."""

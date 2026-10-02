@@ -664,7 +664,34 @@ def main() -> None:
     check("tooltips: controls described", not missing, str(missing))
     ctip = win.char_grid.item_model.item(0).toolTip()
     check("tooltip: char card has name - id + export hint",
-          " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))
+           " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))
+    r1041 = next((r for r in win.char_grid.rows if r["id"] == 1041), None)
+    if r1041 and os.path.isdir(data.char_asset_dir(r1041)):
+        menu["Char ID"].click()             # hidden pages never repaint - show it first
+        for _ in range(10):
+            app.processEvents()
+            time.sleep(0.02)
+        win.char_search.setText("1041")     # bring the card into view - only visible cards repaint
+        for _ in range(80):
+            app.processEvents()
+            time.sleep(0.02)
+        r1041 = next((r for r in win.char_grid.rows if r["id"] == 1041), None)
+        r1041.pop("_export", None)
+        win.char_grid.viewport().repaint()
+        for _ in range(5):
+            app.processEvents()
+        check("char card marks an exported character",
+              "Exported" in (r1041.get("_export") or ""), repr(r1041.get("_export")))
+        win.char_search.setText("")
+        for _ in range(60):
+            app.processEvents()
+            time.sleep(0.02)
+        menu["Mods"].click()
+        for _ in range(10):
+            app.processEvents()
+            time.sleep(0.02)
+    else:
+        print("  [i] no export folder on disk - exported-state check skipped")
     from widgets.mod_delegate import STATUS_TIPS as _STIPS
     mtip = win.view.item_model.item(0).toolTip()
     check("tooltip: mod card shows only the status action",

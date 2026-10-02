@@ -390,8 +390,7 @@ class MainWindow(QWidget):
 
     def _char_asset_dir(self, r: dict) -> str:
         """<asset root>/<ID>_<name> - the folder Export Asset writes to."""
-        name = re.sub(r'[\\/:*?"<>|]', "_", r["name"] or "").strip()
-        return os.path.join(data.asset_root(), f"{r['id']}_{name}" if name else str(r["id"]))
+        return data.char_asset_dir(r)
 
     def _char_menu(self, row: int, gpos) -> None:
         if row >= len(self.char_grid.rows):
@@ -542,6 +541,7 @@ class MainWindow(QWidget):
                     self.side.set_busy(False)
                     self._status(last or f"done (exit {code})")
                     self.refresh()
+                    self.char_grid.invalidate_export()
         except queue.Empty:
             pass
 

@@ -314,6 +314,13 @@ def asset_root() -> str:
                 else os.path.join(APP, "CZN_Asset")))
 
 
+def char_asset_dir(row: dict) -> str:
+    """<asset root>/<ID>_<name> - the folder Export Asset writes a character's files to."""
+    import re
+    name = re.sub(r'[\\/:*?"<>|]', "_", row.get("name") or "").strip()
+    return os.path.join(asset_root(), f"{row['id']}_{name}" if name else str(row["id"]))
+
+
 GAME_MANIFEST = ("bin", "appdata", "cznlive", "gameres", "manifest.ssra")
 
 
