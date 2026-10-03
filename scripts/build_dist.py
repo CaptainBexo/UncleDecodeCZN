@@ -16,6 +16,7 @@ FILES = [
     "ui/main_window.py",
     "ui/theme.py",
     "ui/data.py",
+    "ui/version.py",
     "ui/widgets/mod_delegate.py",
     "ui/widgets/char_grid.py",
     "ui/widgets/chip_bar.py",

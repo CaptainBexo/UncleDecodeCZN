@@ -346,6 +346,9 @@ def main() -> None:
     check("sidebar menu lists Mods/Settings/Char ID",
           [b.text() for b in win.side._menu_items] == ["Mods", "Settings", "Char ID"],
           str([b.text() for b in win.side._menu_items]))
+    from version import VERSION as _VER
+    check("sidebar shows the app version", win.side.ver_lbl.text() == "v" + _VER,
+          win.side.ver_lbl.text())
     menu["Char ID"].click()
     for _ in range(8):
         app.processEvents()
@@ -724,8 +727,12 @@ def main() -> None:
     # custom float tooltip: our popup shows the tip at the cursor (native is swallowed)
     from PySide6.QtGui import QHelpEvent
     win._show_dock(False)                   # the parked dock can cover the main toolbar
-    win.raise_()                            # text_at() asks widgetAt(): ours must be the top window,
-    win.activateWindow()                    # otherwise another app (real user) answers with no tip
+    # text_at() asks widgetAt(): the window must be the VISIBLE top at those coords even
+    # when another app (a real user's browser) sits over it - go topmost for the checks.
+    win.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+    win.show()
+    win.raise_()
+    win.activateWindow()
     for _ in range(5):
         app.processEvents()
         time.sleep(0.05)

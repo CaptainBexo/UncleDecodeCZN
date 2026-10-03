@@ -2,8 +2,8 @@
 
   .venv\\Scripts\\python.exe scripts\\build_exe.py
 
-Bump VERSION on every release batch - it names the exe, the release folder/zip
-and the README header, all from this one spot.
+Bump ui/version.py on every release batch - it is imported here and names the exe,
+the release folder/zip and the README header (the app sidebar shows the same value).
 The exe is fully standalone (no Python needed): GUI when double-clicked, and the same
 file serves the command line via `--cli <cmd> ...`. Mods/,
 backup/ and game_path.txt live next to the exe (main.py sets CZN_APP_DIR).
@@ -16,8 +16,9 @@ import sys
 
 import PyInstaller.__main__ as pyi
 
-VERSION = "0.2"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "ui"))
+from version import VERSION             # single source: ui/version.py (the app shows it too)
 NAME = f"Uncle'sCZNMMMI v{VERSION}"     # final artifact name
 SAFE = f"UncleCZNMMMI_v{VERSION}"       # internal build name
 DISTP = os.path.join(ROOT, "dist_exe")

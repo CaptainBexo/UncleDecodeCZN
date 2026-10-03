@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsOpacityEffect,
 
 import data
 import theme
+import version
 from widgets.title_bar import DragRow
 
 
@@ -142,6 +143,10 @@ class Sidebar(QWidget):
         status.addWidget(self.dot)
         status.addWidget(self.status_lbl)
         status.addStretch(1)
+        self.ver_lbl = QLabel("v" + version.VERSION, block)
+        self.ver_lbl.setObjectName("appVer")
+        self.ver_lbl.setToolTip("App version")
+        status.addWidget(self.ver_lbl)
         bl.addLayout(status)
 
         lay.addWidget(block)

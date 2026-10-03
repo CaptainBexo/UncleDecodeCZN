@@ -96,6 +96,7 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 #sideSep {{ background: {DIVIDER}; border: none; }}
 
 #injectStatus {{ font-size: {F_CHIP}px; color: {TEXT}; }}
+#appVer {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
 
 #primaryBtn {{ background: #FFFFFF; border: 2px solid transparent; border-radius: {R_PRIMARY}px;
                color: {INK}; font-size: {F_BTN}px; font-weight: 600; }}
