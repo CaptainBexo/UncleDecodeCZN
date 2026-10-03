@@ -4,7 +4,7 @@ Lightweight **image / UI mod manager** for **Chaos Zero Nightmare** (STOVE).
 Swap character art, portraits and UI textures with your own images — the game
 launches through STOVE exactly as before.
 
-Download: `Uncle'sCZNMMMI v0.4.zip` from this release, unzip anywhere, run the exe.
+Download the zip from the **Assets** section below, unzip anywhere, run the exe.
 
 ## What it does
 
@@ -27,7 +27,7 @@ Download: `Uncle'sCZNMMMI v0.4.zip` from this release, unzip anywhere, run the e
 
 ## Quick start
 
-1. Download **`Uncle'sCZNMMMI v0.4.zip`** and unzip it anywhere.
+1. Download the release zip (Assets, below) and unzip it anywhere.
 2. Run **`Uncle'sCZNMMMI v0.4.exe`**.
    Windows SmartScreen may warn ("Windows protected your PC") because the file
    is not code-signed — click **More info → Run anyway**. First start takes a
