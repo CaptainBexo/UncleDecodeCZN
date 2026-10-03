@@ -402,6 +402,14 @@ def main() -> None:
         check("check-update button sits next to the version, status on its right",
               win._upd_btn.x() < 620 and win._upd_lbl.x() > win._upd_btn.x(),
               f"label x{win._upd_lbl.x()} btn x{win._upd_btn.x()}")
+        _faded = False
+        for _ in range(750):                    # transient notes fade after ~6 s
+            app.processEvents()
+            time.sleep(0.01)
+            if not win._upd_lbl.isVisible():
+                _faded = True
+                break
+        check("update status fades away on its own", _faded)
     finally:
         _upd.fetch, _QMB.exec = _orig_fetch, _orig_exec
     menu["Char ID"].click()

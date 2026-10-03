@@ -35,6 +35,7 @@ from widgets.title_bar import DragRow, WindowButtons
 
 GRIP = 6          # resize zone along the window edges (columns cover the whole window)
 GAME_POLL_MS = 5000
+UPD_HIDE_MS = 6000       # transient update-note lifetime ("latest"/"offline")
 
 
 class MainWindow(QWidget):
@@ -298,10 +299,10 @@ class MainWindow(QWidget):
         self._upd_thread = None
         self._upd_btn.setEnabled(True)
         if info is None:
-            self._upd_lbl.setText("Check failed (offline?)")
+            self._show_upd_note("Check failed (offline?)")
             return
         if not updater.newer(version.VERSION, info["version"]):
-            self._upd_lbl.setText("You're on the latest version")
+            self._show_upd_note("You're on the latest version")
             return
         self._upd_lbl.setText("Update available: v" + info["version"])
         if self._upd_silent:
@@ -317,6 +318,18 @@ class MainWindow(QWidget):
         box.exec()
         if box.clickedButton() is open_btn:
             QDesktopServices.openUrl(QUrl(info["url"] or info["page"]))
+
+    def _show_upd_note(self, text: str) -> None:
+        """Transient check result ("latest", "offline"): shows, then fades back."""
+        self._upd_lbl.setText(text)
+        self._upd_lbl.setVisible(True)
+
+        def _clear() -> None:
+            # only if nothing newer replaced it (and no check is running)
+            if self._upd_lbl.text() == text and self._upd_thread is None:
+                self._upd_lbl.setVisible(False)
+
+        QTimer.singleShot(UPD_HIDE_MS, _clear)
 
     def _set_page(self, name: str) -> None:
         if name == "Char ID":
