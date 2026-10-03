@@ -544,7 +544,7 @@ class MainWindow(QWidget):
             v.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             v.setWordWrap(True)
             rl.addWidget(k)
-            rl.addWidget(v, 1)
+            rl.addWidget(v, 0 if key == "App version" else 1)   # version row: value hugs the key
             if key == "Game folder":
                 self._game_val = v
                 self._game_browse = QPushButton("Browse...", row)
@@ -567,6 +567,7 @@ class MainWindow(QWidget):
                 self._upd_btn.clicked.connect(lambda: self._check_update())
                 rl.addWidget(self._upd_lbl)
                 rl.addWidget(self._upd_btn)
+                rl.addStretch(1)       # everything packed left of the stretch
             bl.addWidget(row)
             bl.addSpacing(18)
         lay.addWidget(body)
