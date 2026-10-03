@@ -54,7 +54,13 @@ LOOSE = [rb"access_token", rb"bearer", rb"sgup://", rb"token="]
 TEXT_EXT = (".py", ".txt", ".html", ".js", ".json", ".md", ".bat", ".svg", ".css", ".xml")
 
 
+# public identifiers that are part of the product itself (the update endpoint URL)
+ALLOWED = [b"https://api.github.com/repos/CaptainBexo/UncleDecodeCZN/releases/latest"]
+
+
 def scan_bytes(label: str, data: bytes, hits: list, markers) -> None:
+    for a in ALLOWED:
+        data = data.replace(a, b"<public-url>")
     low = data.lower()
     for m in markers:
         i = low.find(m.lower())

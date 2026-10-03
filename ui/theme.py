@@ -97,6 +97,7 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 
 #injectStatus {{ font-size: {F_CHIP}px; color: {TEXT}; }}
 #appVer {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
+#updStatus {{ font-size: {F_CHIP}px; color: {ACCENT}; }}
 
 #cardSize::groove:horizontal {{ height: 4px; background: {DIVIDER}; border-radius: 2px; }}
 #cardSize::sub-page:horizontal {{ background: {ACCENT}; border-radius: 2px; }}

@@ -11,15 +11,19 @@ import os
 import queue
 import re
 import subprocess
+import sys
 import threading
 
-from PySide6.QtCore import QEvent, QPoint, QSettings, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSettings, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
                                QPushButton, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 import data
 import theme
+import updater
+import version
 from widgets.char_grid import CharGrid, ThumbLoader
 from widgets.chip_bar import FilterChips, InfoRow, TabRow, Toolbar
 from widgets.empty_state import EmptyState
@@ -143,6 +147,8 @@ class MainWindow(QWidget):
         self._poll.setInterval(GAME_POLL_MS)
         self._poll.timeout.connect(self._poll_game)
         self._poll.start()
+        if getattr(sys, "frozen", False):           # customers' exe only: one quiet check
+            QTimer.singleShot(4000, self._auto_update_check)
         self._drain = QTimer(self)
         self._drain.setInterval(80)
         self._drain.timeout.connect(self._drain_q)
@@ -269,6 +275,48 @@ class MainWindow(QWidget):
                 self, "Game folder",
                 "That folder is not a Chaos Zero Nightmare install.\n"
                 "Pick the folder that contains bin\\ (bin\\appdata\\cznlive\\gameres\\manifest.ssra).")
+
+    def _check_update(self, silent: bool = False) -> None:
+        """One GET to the release page, off the UI thread; report in the row."""
+        if self._upd_thread is not None:
+            return                                  # already checking
+        self._upd_silent = silent
+        self._upd_btn.setEnabled(False)
+        self._upd_lbl.setText("Checking for updates...")
+        self._upd_lbl.setVisible(True)
+        self._upd_thread = updater.UpdateCheck(self)
+        self._upd_thread.done.connect(self._update_checked)
+        self._upd_thread.finished.connect(self._upd_thread.deleteLater)
+        self._upd_thread.start()
+
+    def _auto_update_check(self) -> None:
+        """Startup check (frozen builds only): no dialog, no nag - the row carries it."""
+        if self._upd_thread is None:
+            self._check_update(silent=True)
+
+    def _update_checked(self, info, err) -> None:
+        self._upd_thread = None
+        self._upd_btn.setEnabled(True)
+        if info is None:
+            self._upd_lbl.setText("Check failed (offline?)")
+            return
+        if not updater.newer(version.VERSION, info["version"]):
+            self._upd_lbl.setText("You're on the latest version")
+            return
+        self._upd_lbl.setText("Update available: v" + info["version"])
+        if self._upd_silent:
+            return                                  # startup: leave the news in the row
+        box = QMessageBox(self)
+        box.setWindowTitle("Update available")
+        box.setText("Uncle'sCZNMMMI v%s is available (you have v%s)."
+                    % (info["version"], version.VERSION))
+        if info.get("notes"):
+            box.setDetailedText(info["notes"])
+        open_btn = box.addButton("Open download page", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            QDesktopServices.openUrl(QUrl(info["url"] or info["page"]))
 
     def _set_page(self, name: str) -> None:
         if name == "Char ID":
@@ -472,7 +520,8 @@ class MainWindow(QWidget):
             ("Game folder", root or "Not found - click Browse to select the game folder"),
             ("Mods folder", self._mods_dir),
             ("Game patch", "1.0.81406"),
-            ("About", "CZN MM/MI 1.0 - Uncle's CZN Mod Manager / Mod Importer - image/UI mods for Chaos Zero Nightmare"),
+            ("App version", "v" + version.VERSION),
+            ("About", "CZN MM/MI - Uncle's CZN Mod Manager / Mod Importer - image/UI mods for Chaos Zero Nightmare"),
         ]
         body = QWidget(page)
         body.setMaximumWidth(720)          # keeps the rows from sprawling on wide windows
@@ -480,6 +529,8 @@ class MainWindow(QWidget):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
         self._game_val = self._game_browse = None
+        self._upd_thread = None            # running UpdateCheck, else None
+        self._upd_silent = False           # startup check: no dialog, row only
         for key, value in rows:
             row = QWidget(body)
             rl = QHBoxLayout(row)
@@ -504,6 +555,18 @@ class MainWindow(QWidget):
                 self._game_browse.clicked.connect(self._pick_game_dir)
                 self._game_browse.setVisible(not root)
                 rl.addWidget(self._game_browse)
+            if key == "App version":
+                self._upd_lbl = QLabel("", row)
+                self._upd_lbl.setObjectName("updStatus")
+                self._upd_lbl.setVisible(False)
+                self._upd_btn = QPushButton("Check update", row)
+                self._upd_btn.setObjectName("outlineBtn")
+                self._upd_btn.setFixedHeight(30)
+                self._upd_btn.setToolTip("Ask the release page whether a newer version exists")
+                self._upd_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                self._upd_btn.clicked.connect(lambda: self._check_update())
+                rl.addWidget(self._upd_lbl)
+                rl.addWidget(self._upd_btn)
             bl.addWidget(row)
             bl.addSpacing(18)
         lay.addWidget(body)

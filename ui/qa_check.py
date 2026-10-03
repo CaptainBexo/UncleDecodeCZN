@@ -174,6 +174,13 @@ def main() -> None:
           str([m.name for m in win.view.mods]))
     tabs["All"].click()
 
+    # the layout checks below assume the DEFAULT card size: a real user's saved
+    # slider value (QSettings) must not fail them - reset now, restore at the end
+    _card_w_saved = int(QSettings("CZN_MMMI", "tool").value("mod_card_min_w", theme.CARD_MIN_W))
+    win.toolbar.size_slider.setValue(theme.CARD_MIN_W)
+    for _ in range(3):
+        app.processEvents()
+
     gs = win.view.gridSize()
     row = (win.view.width() - theme.SCROLLBAR_W - 2 + theme.GRID_GAP) // (gs.width())
     check("grid 1400x850: >=4 cards per row, cell >= min width",
@@ -349,6 +356,48 @@ def main() -> None:
     from version import VERSION as _VER
     check("sidebar shows the app version", win.side.ver_lbl.text() == "v" + _VER,
           win.side.ver_lbl.text())
+    import updater as _upd
+    _vc = [_upd.newer("0.4", "0.5"), _upd.newer("0.4.1", "0.4"),
+           _upd.newer("0.4", "0.4"), _upd.newer("0.4", "0.4.1")]
+    check("update version compare", _vc == [True, False, False, True], str(_vc))
+    # manual check flow, all three outcomes, with the fetch stubbed (QA stays offline)
+    from PySide6.QtWidgets import QMessageBox as _QMB
+    _orig_fetch, _orig_exec = _upd.fetch, _QMB.exec
+    _QMB.exec = lambda self: 0
+    try:
+        _upd.fetch = lambda url=None: {"version": "9.9", "url": "https://example.com/x.zip",
+                                       "page": "", "notes": "test", "sha256": None}
+        win._check_update()
+        for _ in range(200):
+            app.processEvents()
+            time.sleep(0.02)
+            if win._upd_thread is None:
+                break
+        check("check-update finds a newer release",
+              win._upd_lbl.text() == "Update available: v9.9", win._upd_lbl.text())
+        _upd.fetch = lambda url=None: {"version": _VER, "url": "", "page": "",
+                                       "notes": "", "sha256": None}
+        win._check_update()
+        for _ in range(200):
+            app.processEvents()
+            time.sleep(0.02)
+            if win._upd_thread is None:
+                break
+        check("check-update reports when up to date",
+              win._upd_lbl.text() == "You're on the latest version", win._upd_lbl.text())
+        def _boom(url=None):
+            raise OSError("offline")
+        _upd.fetch = _boom
+        win._check_update()
+        for _ in range(200):
+            app.processEvents()
+            time.sleep(0.02)
+            if win._upd_thread is None:
+                break
+        check("check-update fails quietly when offline",
+              win._upd_lbl.text() == "Check failed (offline?)", win._upd_lbl.text())
+    finally:
+        _upd.fetch, _QMB.exec = _orig_fetch, _orig_exec
     menu["Char ID"].click()
     for _ in range(8):
         app.processEvents()
@@ -684,7 +733,7 @@ def main() -> None:
     # every control carries a tooltip; the painted grids carry them via the model
     tips = {"Apply mods": win.side.primary, "Revert all": win.side.revert,
             "refresh": win.toolbar.refresh, "Open folder": win.toolbar.open_folder,
-            "card size": win.toolbar.size_slider,
+            "card size": win.toolbar.size_slider, "check update": win._upd_btn,
             "sort": win.info.sort_btn, "tabs": win.tab_row.group.buttons()[0],
             "chips": win.toolbar.chips.buttons[0], "search": win.char_search,
             "columns": win.char_cols_btn, "char chips": win.char_chips.buttons[0]}
@@ -693,7 +742,7 @@ def main() -> None:
     menu["Mods"].click()                    # the slider acts on the mods grid
     for _ in range(3):
         app.processEvents()
-    _cw0 = win.toolbar.size_slider.value()
+    _cw0 = theme.CARD_MIN_W                   # the baseline set above
     win.toolbar.size_slider.setValue(340)   # bigger cards -> fewer, wider columns
     for _ in range(5):
         app.processEvents()
@@ -707,7 +756,7 @@ def main() -> None:
     check("card size persists to settings",
           int(QSettings("CZN_MMMI", "tool").value("mod_card_min_w", 0)) == win.view.card_min_w,
           str(win.view.card_min_w))
-    win.toolbar.size_slider.setValue(_cw0)  # restore the user's own size
+    win.toolbar.size_slider.setValue(_card_w_saved)   # restore the user's own size
     ctip = win.char_grid.item_model.item(0).toolTip()
     check("tooltip: char card has name - id + export hint",
            " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))

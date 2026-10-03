@@ -1,5 +1,11 @@
 # UncleDecodeCZN
 
+**Uncle'sCZNMMMI** — a lightweight image/UI mod manager for Chaos Zero Nightmare (STOVE).
+Grab the single-exe build from **[Releases](../../releases/latest)** (user guide inside
+the release notes / [`README_RELEASE.md`](README_RELEASE.md)).
+
+---
+
 Decoder + texture mod toolkit for Chaos Zero Nightmare (yuna engine, STOVE).
 
 ## Layout
