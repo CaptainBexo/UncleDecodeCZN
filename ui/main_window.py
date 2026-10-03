@@ -565,8 +565,8 @@ class MainWindow(QWidget):
                 self._upd_btn.setToolTip("Ask the release page whether a newer version exists")
                 self._upd_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._upd_btn.clicked.connect(lambda: self._check_update())
-                rl.addWidget(self._upd_lbl)
                 rl.addWidget(self._upd_btn)
+                rl.addWidget(self._upd_lbl)     # status text sits right of the button
                 rl.addStretch(1)       # everything packed left of the stretch
             bl.addWidget(row)
             bl.addSpacing(18)

@@ -399,8 +399,8 @@ def main() -> None:
         win.settings_page.layout().activate()
         for _ in range(5):
             app.processEvents()
-        check("check-update button sits next to the version",
-              win._upd_lbl.x() < 460 and win._upd_btn.x() < 620,
+        check("check-update button sits next to the version, status on its right",
+              win._upd_btn.x() < 620 and win._upd_lbl.x() > win._upd_btn.x(),
               f"label x{win._upd_lbl.x()} btn x{win._upd_btn.x()}")
     finally:
         _upd.fetch, _QMB.exec = _orig_fetch, _orig_exec
