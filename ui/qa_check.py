@@ -18,7 +18,7 @@ import time
 import urllib.request
 
 from PIL import Image
-from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSettings, Qt, QUrl
 from PySide6.QtGui import (QDragEnterEvent, QDragLeaveEvent, QDropEvent, QFont,
                            QFontDatabase, QFontMetrics, QMouseEvent)
 from PySide6.QtTest import QTest
@@ -684,11 +684,30 @@ def main() -> None:
     # every control carries a tooltip; the painted grids carry them via the model
     tips = {"Apply mods": win.side.primary, "Revert all": win.side.revert,
             "refresh": win.toolbar.refresh, "Open folder": win.toolbar.open_folder,
+            "card size": win.toolbar.size_slider,
             "sort": win.info.sort_btn, "tabs": win.tab_row.group.buttons()[0],
             "chips": win.toolbar.chips.buttons[0], "search": win.char_search,
             "columns": win.char_cols_btn, "char chips": win.char_chips.buttons[0]}
     missing = [k for k, w in tips.items() if not w.toolTip()]
     check("tooltips: controls described", not missing, str(missing))
+    menu["Mods"].click()                    # the slider acts on the mods grid
+    for _ in range(3):
+        app.processEvents()
+    _cw0 = win.toolbar.size_slider.value()
+    win.toolbar.size_slider.setValue(340)   # bigger cards -> fewer, wider columns
+    for _ in range(5):
+        app.processEvents()
+    _cw1 = win.view.gridSize().width()
+    win.toolbar.size_slider.setValue(150)
+    for _ in range(5):
+        app.processEvents()
+    _cw2 = win.view.gridSize().width()
+    check("card size slider resizes the mod cards",
+          _cw1 > _cw0 + 20 and _cw2 < _cw1 - 40, f"{_cw0} -> {_cw1} -> {_cw2}")
+    check("card size persists to settings",
+          int(QSettings("CZN_MMMI", "tool").value("mod_card_min_w", 0)) == win.view.card_min_w,
+          str(win.view.card_min_w))
+    win.toolbar.size_slider.setValue(_cw0)  # restore the user's own size
     ctip = win.char_grid.item_model.item(0).toolTip()
     check("tooltip: char card has name - id + export hint",
            " - " in ctip and "Export" in ctip, ctip.replace("\n", " | "))

@@ -98,6 +98,12 @@ QWidget {{ color: {TEXT}; font-size: {F_BODY}px; background: transparent; }}
 #injectStatus {{ font-size: {F_CHIP}px; color: {TEXT}; }}
 #appVer {{ font-size: {F_CHIP}px; color: {TEXT_MUTED}; }}
 
+#cardSize::groove:horizontal {{ height: 4px; background: {DIVIDER}; border-radius: 2px; }}
+#cardSize::sub-page:horizontal {{ background: {ACCENT}; border-radius: 2px; }}
+#cardSize::handle:horizontal {{ width: 14px; height: 14px; margin: -5px 0; background: #C8C8C8;
+                                border-radius: 7px; }}
+#cardSize::handle:horizontal:hover {{ background: #FFFFFF; }}
+
 #primaryBtn {{ background: #FFFFFF; border: 2px solid transparent; border-radius: {R_PRIMARY}px;
                color: {INK}; font-size: {F_BTN}px; font-weight: 600; }}
 #primaryBtn:hover {{ background: #E8E8E8; }}

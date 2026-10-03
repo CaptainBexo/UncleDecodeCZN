@@ -291,6 +291,7 @@ class ModListView(QListView):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("cardGrid")
+        self.card_min_w = theme.CARD_MIN_W   # slider target; relayout() derives the cells
         self.setViewMode(QListView.ViewMode.IconMode)
         self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setMovement(QListView.Movement.Static)
@@ -344,8 +345,8 @@ class ModListView(QListView):
         # on the scrollbar being visible, or toggling it flips the column count and
         # the two states ping-pong forever (maximize = elements shaking).
         vw = self.width() - theme.SCROLLBAR_W - 2
-        n = max(2, (vw + theme.GRID_GAP) // (theme.CARD_MIN_W + theme.GRID_GAP))
-        while n > 2 and (vw - n * theme.GRID_GAP) // n < theme.CARD_MIN_W:
+        n = max(2, (vw + theme.GRID_GAP) // (self.card_min_w + theme.GRID_GAP))
+        while n > 2 and (vw - n * theme.GRID_GAP) // n < self.card_min_w:
             n -= 1
         w = (vw - n * theme.GRID_GAP) // n
         h = round(w * BANNER_RATIO) + BODY_H
@@ -357,6 +358,14 @@ class ModListView(QListView):
     def resizeEvent(self, e) -> None:
         super().resizeEvent(e)
         self.relayout()
+
+    def set_card_min_w(self, w: int) -> None:
+        """Card-size slider target: minimum card width - column count (and so the
+        actual card size) follows from it."""
+        w = max(120, min(480, int(w)))
+        if w != self.card_min_w:
+            self.card_min_w = w
+            self.relayout()
 
     def _chip_at(self, pos) -> int:
         idx = self.indexAt(pos.toPoint())

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QSize, Qt, Signal
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QMenu,
-                               QPushButton, QWidget)
+                               QPushButton, QSlider, QWidget)
 
 import data
 import theme
@@ -16,6 +16,7 @@ from widgets.title_bar import DragRow
 TOOLBAR_H = 44
 CHIP_H = 36
 ACTION_H = 36
+CARD_W_MIN, CARD_W_MAX = 140, 360     # mod-card size slider range (min card width)
 
 
 class TabRow(DragRow):
@@ -128,6 +129,17 @@ class Toolbar(QWidget):
 
         self.chips = FilterChips(self)
         lay.addWidget(self.chips, 1)
+
+        self.size_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.size_slider.setObjectName("cardSize")
+        self.size_slider.setFixedWidth(110)
+        self.size_slider.setRange(CARD_W_MIN, CARD_W_MAX)
+        self.size_slider.setSingleStep(8)
+        self.size_slider.setPageStep(40)
+        self.size_slider.setToolTip("Mod card size")
+        self.size_slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.size_slider.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        lay.addWidget(self.size_slider)
 
         self.refresh = QPushButton(self)
         self.refresh.setObjectName("iconBtn")

@@ -13,7 +13,7 @@ import re
 import subprocess
 import threading
 
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSettings, QSize, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QFileDialog, QFrame,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
                                QPushButton, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
@@ -124,6 +124,10 @@ class MainWindow(QWidget):
         self.toolbar.refreshClicked.connect(self.refresh)
         self.toolbar.openFolderClicked.connect(self._open_mods)
         self.info.sortChanged.connect(self._set_sort)
+        self._set_card_size(int(QSettings("CZN_MMMI", "tool").value(
+            "mod_card_min_w", theme.CARD_MIN_W)))      # restore before wiring (no persistence)
+        self.toolbar.size_slider.setValue(self.view.card_min_w)
+        self.toolbar.size_slider.valueChanged.connect(self._set_card_size)
         self.side.applyClicked.connect(lambda: self._run_cli(["apply"], "Apply mods"))
         self.side.revertClicked.connect(self._revert_all)
         self.side.pageChanged.connect(self._set_page)
@@ -204,6 +208,10 @@ class MainWindow(QWidget):
     def _set_sort(self, key: str) -> None:
         self._sort = key
         self._rebuild()
+
+    def _set_card_size(self, w: int) -> None:
+        self.view.set_card_min_w(w)
+        QSettings("CZN_MMMI", "tool").setValue("mod_card_min_w", self.view.card_min_w)
 
     # ---------- per-mod enable / disable (status chip on the card) ----------
 
