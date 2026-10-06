@@ -608,6 +608,34 @@ def main() -> None:
     _o2 = spine_prep._page_ready(_pm)
     check("premultiplied pages pass through untouched",
           _o2.getpixel((100, 100)) == (100, 15, 15, 128), str(_o2.getpixel((100, 100))))
+    # a machine without the game: prep must fail LOUDLY, not hang (a SystemExit
+    # from czn_paths used to escape the worker's except and strand the dock)
+    import types
+    class _NoPack:
+        def __init__(self, *a, **k):
+            raise SystemExit("no game here")
+    _stub = types.ModuleType("czn_pack")
+    _stub.Pack = _NoPack
+    _real_pack = sys.modules.get("czn_pack")
+    sys.modules["czn_pack"] = _stub
+    _res: list = []
+    from widgets.spine_panel import SpinePrep as _SpinePrep
+    _w = _SpinePrep("model/1041.scsp", "qa_nogame",
+                    os.path.join(prep_src, "qa_nogame"), None, None)
+    _w.done.connect(lambda ok, slug, err: _res.append((ok, err)))
+    _w.start()
+    for _ in range(800):
+        app.processEvents()
+        time.sleep(0.01)
+        if _res:
+            break
+    if _real_pack is not None:
+        sys.modules["czn_pack"] = _real_pack
+    else:
+        sys.modules.pop("czn_pack", None)
+    check("viewer prep without the game fails with a message (no silent hang)",
+          bool(_res) and _res[0][0] is False and "no game here" in _res[0][1],
+          repr(_res[:1]))
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")

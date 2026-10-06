@@ -215,6 +215,8 @@ class ViewerDock(QWidget):
         """Play the pack model at `base` with `img` replacing its page."""
         if self._prep is not None and self._prep.isRunning():
             return
+        if not self._need_game():
+            return
         override = {os.path.basename(base) + ".sct": img}
         slug = "mod_" + hashlib.sha1(("%s|%s" % (base, img)).encode("utf-8")).hexdigest()[:8]
         self._last = ("modspine", base, img)
@@ -310,6 +312,8 @@ class ViewerDock(QWidget):
     def load_spine(self, name: str) -> None:
         if self._prep is not None and self._prep.isRunning():
             return
+        if not self._need_game():
+            return
         slug = name[: -len(".scsp")].replace("/", "__")
         self._last = ("spine", name)
         self._say("Preparing %s ..." % name)
@@ -371,3 +375,11 @@ class ViewerDock(QWidget):
     def _say(self, text: str, error: bool = False) -> None:
         self.status.setText(text)
         self.status.setStyleSheet("color: %s" % (theme.DANGER if error else theme.TEXT_TOTAL))
+
+    def _need_game(self) -> bool:
+        """The Viewer plays models straight from the installed game's files."""
+        if data.game_root():
+            return True
+        self._say("Game folder not found - the Viewer plays models from the installed "
+                  "game. Set it in Settings (Game folder).", error=True)
+        return False

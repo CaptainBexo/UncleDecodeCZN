@@ -101,8 +101,9 @@ class SpinePrep(QThread):
             import spine_prep
             spine_prep.prepare(self._src, self._out, self._override)
             self.done.emit(True, self._slug, "")
-        except Exception as e:  # noqa: BLE001 - surface any prep failure in the panel
-            self.done.emit(False, self._slug, "%s: %s" % (type(e).__name__, e))
+        except BaseException as e:  # noqa: BLE001 - SystemExit too: no game -> czn_paths exits
+            msg = str(e) if isinstance(e, SystemExit) else "%s: %s" % (type(e).__name__, e)
+            self.done.emit(False, self._slug, msg)
 
 
 class SpinePanel(QWidget):
