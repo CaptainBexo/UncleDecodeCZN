@@ -34,11 +34,19 @@ def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad
     if pf in (40, 44, 47):
         bw = {40: 4, 44: 6, 47: 8}[pf]
         # astcenc needs image with exact w×h; resize input if mismatched
-        im = Image.open(png_path)
+        im = Image.open(png_path).convert("RGBA")
         if im.size != (w, hh):
             im = im.resize((w, hh), Image.LANCZOS)
-            png_path = png_path + ".resized.png"
-            im.save(png_path)
+        # Some editors (Clip Studio Paint) export fully transparent pixels with
+        # white RGB; the game's own pages keep them black, and light values
+        # under zero alpha bleed through texture filtering into visible art as
+        # white fringes. Flush them to black before encoding.
+        a = im.getchannel("A")
+        if a.getextrema()[0] == 0:
+            im = Image.composite(Image.new("RGBA", im.size, (0, 0, 0, 0)), im,
+                                 a.point(lambda v: 255 if v == 0 else 0))
+        png_path = png_path + ".clean.png"
+        im.save(png_path)
         block_data = _astc_encode(png_path, w, hh, bw, bw, effort)
     else:
         raise NotImplementedError(f"encode for format {pf} not implemented")

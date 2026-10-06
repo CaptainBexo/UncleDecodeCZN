@@ -44,8 +44,22 @@ def _is_premultiplied(im) -> bool:
     return bad < max(1000, semi * 0.005)
 
 
+def _flush_clear_whites(im):
+    """Editors (Clip Studio Paint) may export fully transparent pixels with a
+    light rgb value; texture filtering bleeds that into visible art as white
+    fringes. The game's own pages keep clear texels black - match that."""
+    from PIL import Image
+    im = im.convert("RGBA")
+    a = im.getchannel("A")
+    if a.getextrema()[0] == 0:
+        im = Image.composite(Image.new("RGBA", im.size, (0, 0, 0, 0)), im,
+                             a.point(lambda v: 255 if v == 0 else 0))
+    return im
+
+
 def _page_ready(im):
-    """Premultiply only when the source is straight alpha."""
+    """Flush clear-texel whites, then premultiply only when the source is straight alpha."""
+    im = _flush_clear_whites(im)
     return im if _is_premultiplied(im) else _premultiply(im)
 
 

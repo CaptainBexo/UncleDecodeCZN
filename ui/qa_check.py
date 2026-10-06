@@ -636,6 +636,25 @@ def main() -> None:
     check("viewer prep without the game fails with a message (no silent hang)",
           bool(_res) and _res[0][0] is False and "no game here" in _res[0][1],
           repr(_res[:1]))
+    # editor exports can carry white RGB under zero alpha (Clip Studio Paint);
+    # encode_like must flush those to black or the game bleeds white into art
+    import sct2_enc as _enc
+    from czn_pack import Pack as _Pack
+    _orig = _Pack().extract("img/btn_dark_exit.sct")
+    from sct2 import decode as _dec
+    _o0, _h0 = _dec(_orig)
+    _tw, _th = _o0.size
+    _test = Image.new("RGBA", (_tw, _th), (255, 255, 255, 0))
+    _test.paste((200, 30, 30, 255), (_tw//4, _th//4, _tw*3//4, _th*3//4))
+    _tp = os.path.join(prep_src, "white_bg_test.png")
+    _test.save(_tp)
+    _enc_out = _enc.encode_like(_orig, _tp, "-fast")
+    _o1, _ = _dec(_enc_out)
+    _corner = _o1.getpixel((2, 2))
+    _center = _o1.getpixel((_tw//2, _th//2))
+    check("encode flushes white under zero alpha (Clip Studio export)",
+          _corner[3] < 40 and max(_corner[:3]) < 60 and _center[3] > 200,
+          f"corner={_corner} center={_center}")
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")
