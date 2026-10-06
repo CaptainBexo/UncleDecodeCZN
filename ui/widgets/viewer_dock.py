@@ -215,13 +215,11 @@ class ViewerDock(QWidget):
         """Play the pack model at `base` with `img` replacing its page."""
         if self._prep is not None and self._prep.isRunning():
             return
+        if not self._need_game():
+            return
         override = {os.path.basename(base) + ".sct": img}
         slug = "mod_" + hashlib.sha1(("%s|%s" % (base, img)).encode("utf-8")).hexdigest()[:8]
         self._last = ("modspine", base, img)
-        if self._show_cached(slug):
-            return
-        if not self._need_game():
-            return
         self._say("Preparing %s with %s ..." % (base, os.path.basename(img)))
         self._prep = SpinePrep(base + ".scsp", slug,
                                os.path.join(data.SPINE_CACHE, slug), override, self)
@@ -314,12 +312,10 @@ class ViewerDock(QWidget):
     def load_spine(self, name: str) -> None:
         if self._prep is not None and self._prep.isRunning():
             return
-        slug = name[: -len(".scsp")].replace("/", "__")
-        self._last = ("spine", name)
-        if self._show_cached(slug):
-            return
         if not self._need_game():
             return
+        slug = name[: -len(".scsp")].replace("/", "__")
+        self._last = ("spine", name)
         self._say("Preparing %s ..." % name)
         self._prep = SpinePrep(name, slug, os.path.join(data.SPINE_CACHE, slug), None, self)
         self._prep.done.connect(self._spine_ready)
@@ -379,14 +375,6 @@ class ViewerDock(QWidget):
     def _say(self, text: str, error: bool = False) -> None:
         self.status.setText(text)
         self.status.setStyleSheet("color: %s" % (theme.DANGER if error else theme.TEXT_TOTAL))
-
-    def _show_cached(self, slug: str) -> bool:
-        """A prepared bundle in the cache plays straight from disk; the game is
-        only needed the first time a model is viewed (or when it changes)."""
-        if not os.path.isfile(os.path.join(data.SPINE_CACHE, slug, "skeleton.json")):
-            return False
-        self._spine_ready(True, slug, "")
-        return True
 
     def _need_game(self) -> bool:
         """The Viewer plays models straight from the installed game's files."""

@@ -636,27 +636,6 @@ def main() -> None:
     check("viewer prep without the game fails with a message (no silent hang)",
           bool(_res) and _res[0][0] is False and "no game here" in _res[0][1],
           repr(_res[:1]))
-    # a cached bundle plays without touching the game (or the prep worker)
-    _cached = ""
-    try:
-        for _s in os.listdir(data.SPINE_CACHE):
-            if os.path.isfile(os.path.join(data.SPINE_CACHE, _s, "skeleton.json")):
-                _cached = _s
-                break
-    except OSError:
-        pass
-    if _cached:
-        _prep_before = win.dock._prep
-        win.dock.load_spine(_cached.replace("__", "/") + ".scsp")
-        for _ in range(50):
-            app.processEvents()
-            time.sleep(0.01)
-        check("cached model plays back without the game (no prep run)",
-              win.dock.status.text().startswith("Loaded")
-              and win.dock._prep is _prep_before,
-              win.dock.status.text())
-    else:
-        print("[i] spine cache empty - cached-playback check skipped")
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")
