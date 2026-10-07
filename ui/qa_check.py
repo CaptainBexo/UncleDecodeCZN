@@ -653,8 +653,9 @@ def main() -> None:
     _corner = _o1.getpixel((2, 2))
     _center = _o1.getpixel((_tw//2, _th//2))
     check("encode flushes white under zero alpha (Clip Studio export)",
-          _corner[3] < 40 and max(_corner[:3]) < 60 and _center[3] > 200,
-          f"corner={_corner} center={_center}")
+          _corner[3] < 40 and max(_corner[:3]) < 60 and _center[3] > 200
+          and not os.path.exists(_tp + ".clean.png"),
+          f"corner={_corner} center={_center} work-leftover={os.path.exists(_tp + '.clean.png')}")
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")

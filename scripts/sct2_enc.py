@@ -40,14 +40,23 @@ def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad
         # Some editors (Clip Studio Paint) export fully transparent pixels with
         # white RGB; the game's own pages keep them black, and light values
         # under zero alpha bleed through texture filtering into visible art as
-        # white fringes. Flush them to black before encoding.
+        # white fringes. Flush them to black before encoding. The normalized
+        # copy goes to a temp file - never next to the user's source image.
         a = im.getchannel("A")
         if a.getextrema()[0] == 0:
             im = Image.composite(Image.new("RGBA", im.size, (0, 0, 0, 0)), im,
                                  a.point(lambda v: 255 if v == 0 else 0))
-        png_path = png_path + ".clean.png"
-        im.save(png_path)
-        block_data = _astc_encode(png_path, w, hh, bw, bw, effort)
+        fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")
+        os.close(fd)
+        try:
+            im.save(work)
+            block_data = _astc_encode(work, w, hh, bw, bw, effort)
+        finally:
+            for leftover in (work, work + f".{bw}x{bw}.astc"):
+                try:
+                    os.remove(leftover)
+                except OSError:
+                    pass
     else:
         raise NotImplementedError(f"encode for format {pf} not implemented")
     doff = h["data_offset"]
