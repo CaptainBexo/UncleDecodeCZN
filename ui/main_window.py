@@ -366,8 +366,19 @@ class MainWindow(QWidget):
             return
         self._upd_ready = path
         self._upd_lbl.setVisible(True)
-        self._upd_lbl.setText("Update v%s ready - it will apply when you close the app"
+        self._upd_lbl.setText("Update v%s ready - the app will restart to finish"
                               % info["version"])
+        QTimer.singleShot(2500, self._try_auto_restart)
+
+    def _try_auto_restart(self) -> None:
+        """Staged update + nothing writing to the game = restart into it now."""
+        if not self._upd_ready or not getattr(sys, "frozen", False):
+            return
+        if self._busy:                          # apply/revert/export in flight: wait
+            QTimer.singleShot(8000, self._try_auto_restart)
+            return
+        self._restart_now = True
+        self.close()
 
     def _apply_staged_update(self) -> None:
         """A downloaded exe staged beside ours is swapped in after we exit."""
@@ -377,7 +388,8 @@ class MainWindow(QWidget):
         if not os.path.isfile(staged):
             return
         try:
-            script = updater.write_swap_script(os.getpid(), sys.executable)
+            script = updater.write_swap_script(os.getpid(), sys.executable,
+                                               relaunch=self._restart_now)
             subprocess.Popen(["cmd", "/c", script],
                              creationflags=0x08000000 | 0x00000008,  # no window, detached
                              close_fds=True)
@@ -600,6 +612,7 @@ class MainWindow(QWidget):
         self._upd_silent = False           # startup check: no dialog, row only
         self._upd_dl = None                # running Download, else None
         self._upd_ready = None             # staged update path when downloaded
+        self._restart_now = False          # self-update: exit -> swap -> relaunch
         for key, value in rows:
             row = QWidget(body)
             rl = QHBoxLayout(row)

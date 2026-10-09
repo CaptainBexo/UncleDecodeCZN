@@ -124,12 +124,15 @@ class Download(QThread):
             self.done.emit(False, "", "%s" % e)
 
 
-def write_swap_script(pid: int, exe_path: str) -> str:
+def write_swap_script(pid: int, exe_path: str, relaunch: bool = False) -> str:
     """A cmd script: waits for `pid` to exit, swaps `exe_path` with its staged
-    `<exe_path>.new`, cleans up. On repeated lock failures the old exe is put
-    back, so the worst case is 'update did not apply', never a missing exe."""
+    `<exe_path>.new`, cleans up. relaunch=True starts the new exe right away
+    (self-restart); False just leaves it for the next manual open. On repeated
+    lock failures the old exe is put back, so the worst case is 'update did
+    not apply', never a missing exe."""
     exe_path = os.path.abspath(exe_path)
     new, bak = exe_path + ".new", exe_path + ".old"
+    rel_line = f'start "" "{exe_path}"\n' if relaunch else ""
     bat = os.path.join(tempfile.gettempdir(), "czn_update_%d.bat" % pid)
     script = f"""@echo off
 setlocal EnableDelayedExpansion
@@ -156,7 +159,7 @@ if errorlevel 1 (
   ping -n 2 127.0.0.1 >nul
   goto swapnew
 )
-del "{bak}" >nul 2>&1
+{rel_line}del "{bak}" >nul 2>&1
 del "%~f0" >nul 2>&1
 exit /b 0
 :restore

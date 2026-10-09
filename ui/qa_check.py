@@ -440,12 +440,19 @@ def main() -> None:
     with open(_exe + ".new", "wb") as _fh:
         _fh.write(b"NEW")
     _bat = _upd.write_swap_script(999999, _exe)     # pid never exists: wait exits at once
+    _txt_plain = open(_bat, encoding="mbcs").read()
+    _bat_rl = _upd.write_swap_script(999998, _exe, relaunch=True)
+    _txt_rl = open(_bat_rl, encoding="mbcs").read()
+    os.remove(_bat_rl)
     _r1 = _sp.run(["cmd", "/c", _bat], capture_output=True, timeout=180)
     _now = open(_exe, "rb").read()
     check("update swap script replaces the exe and cleans up",
           _now == b"NEW" and not os.path.exists(_exe + ".new")
           and not os.path.exists(_exe + ".old") and not os.path.exists(_bat),
           f"rc={_r1.returncode} exe={_now!r} files={sorted(os.listdir(_sd))}")
+    check("update swap script relaunches only when asked",
+          f'start "" "{_exe}"' in _txt_rl and 'start ""' not in _txt_plain,
+          "relaunch line present in relaunch variant only")
     menu["Char ID"].click()
     for _ in range(8):
         app.processEvents()
