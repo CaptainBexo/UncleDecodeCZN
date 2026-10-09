@@ -203,6 +203,33 @@ def _retype_hint(key, path, target):
             "Char ID tab's Export Asset, or 'list <keyword>')")
 
 
+def _orig_ref_path(key):
+    return os.path.join(BACKUP, key.replace("/", "_").replace("\\", "_") + ".orig.png")
+
+
+def _ensure_orig_ref(key, target, orig):
+    """Path of the pristine page PNG used to strip editor ripple from mods.
+
+    Seeded from the pack on the very first apply of a page (the pack still
+    holds the true original then). Once the page has backup entries the pack
+    is no longer original, so no ref is invented - the ripple pass just stays
+    off for it."""
+    rp = _orig_ref_path(key)
+    if os.path.exists(rp):
+        return rp
+    try:
+        bj = os.path.join(BACKUP, "mod_" + target.replace("/", "_") + ".json")
+        if os.path.exists(bj) and json.load(open(bj)):
+            return None
+        from sct2 import decode
+        im, _ = decode(orig)
+        os.makedirs(BACKUP, exist_ok=True)
+        im.save(rp)
+        return rp
+    except Exception:
+        return None
+
+
 def apply(quiet=False, verify_all=False):
     """Apply Mods/ -> pack. Skips files whose PNG is unchanged and whose in-pack copy still matches
     what we wrote (verify pass re-checks the pack, catching game repairs). Returns (applied, skipped, failed)."""
@@ -242,6 +269,7 @@ def apply(quiet=False, verify_all=False):
                        "game_root": GAME_ROOT}
             fail += 1
             continue
+        ref = _ensure_orig_ref(key, target, orig)
         if entry.get("png_sha1") == png_sha and entry.get("game_root") == GAME_ROOT:
             if not entry.get("sct_sha1"):
                 skip += 1  # previous encode failed; wait for the PNG to change
@@ -250,7 +278,7 @@ def apply(quiet=False, verify_all=False):
                 skip += 1
                 continue
         try:
-            new = encode_like(orig, path, EFFORT)
+            new = encode_like(orig, path, EFFORT, ref_png=ref)
             touched = M.inject(target, new, stealth=True, key=key)
             if M.verify(target) != new:
                 raise RuntimeError("re-extract verify mismatch")

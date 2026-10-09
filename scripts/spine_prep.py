@@ -76,6 +76,32 @@ def _premultiply_excess(im, tol: int = 12):
     return Image.merge("RGBA", (*rgb.split(), a))
 
 
+def _match_source(im, ref, radius: float = 4.0, tol: int = 18):
+    """Undo the high-frequency ripple every editor roundtrip adds to a page.
+
+    PNG exports that went through rescales/saves carry a few points of
+    brightness wiggle on top of the original's own edges (measured against the
+    pristine page: +5..17 on structures, +/-1-2 drift elsewhere). Rendered,
+    that reads as pale fringes/dots hugging every line. Keep the smooth part of
+    `im - ref` (real edits live there), clamp the sharp part to zero when its
+    amplitude is small - and leave anything stronger (drawn lines, covered
+    areas) untouched.
+    """
+    from PIL import Image, ImageChops, ImageFilter
+    im = im.convert("RGBA")
+    ref = ref.convert("RGBA")
+    if im.size != ref.size:
+        return im
+    rgb = im.convert("RGB")
+    d8 = ImageChops.subtract(rgb, ref.convert("RGB"), 1.0, 128)
+    blur = d8.filter(ImageFilter.GaussianBlur(radius))
+    hf8 = ImageChops.subtract(d8, blur, 1.0, 128)
+    rem = hf8.point(lambda v: v if abs(v - 128) <= tol else 128)
+    out = ImageChops.add(ref.convert("RGB"), ImageChops.subtract(d8, rem, 1.0, 128),
+                         1.0, -128)
+    return Image.merge("RGBA", (*out.split(), im.getchannel("A")))
+
+
 def _page_ready(im, tol: int = 12):
     """Flush clear-texel whites, then normalize the premultiply state: a fully
     straight page is premultiplied once; a premultiplied page only gets its

@@ -35,7 +35,8 @@ def _snapped(im, step: int):
     return Image.merge("RGBA", (snap(r), snap(g), snap(b), a))
 
 
-def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad="zeros") -> bytes:
+def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad="zeros",
+                ref_png=None) -> bytes:
     """Re-encode PNG as SCT2 with the same header/flags as `orig`, keep_len = pad to original size.
 
     When the encoded stream overflows the original byte budget (heavily
@@ -61,7 +62,14 @@ def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad
     # does: clear texels flushed to black, straight pages premultiplied
     # once, straight leftovers on a premultiplied page premultiplied. Raw
     # PNG input carries no decode noise, so the excess threshold is tight.
+    # With the pristine page at hand, also strip the editor roundtrip's
+    # high-frequency ripple (the pale fringes along every line).
     import spine_prep
+    if ref_png is not None:
+        try:
+            im = spine_prep._match_source(im, Image.open(ref_png))
+        except OSError:
+            pass
     im = spine_prep._page_ready(im, tol=2)
 
     fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")

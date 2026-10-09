@@ -673,6 +673,15 @@ def main() -> None:
     _h2 = spine_prep._page_ready(_tip, tol=12).getpixel((4, 4))
     check("slight alpha overshoot is premultiplied only under the tight tolerance",
           _h1[0] == 41 and _h2[0] == 106, f"tight={_h1} loose={_h2}")
+    _ref = _PImage.new("RGBA", (48, 16), (100, 100, 100, 255))
+    _him = _ref.copy()
+    _him.putpixel((10, 8), (112, 112, 112, 255))
+    for _x in range(24, 36):
+        _him.putpixel((_x, 8), (160, 160, 160, 255))
+    _m = spine_prep._match_source(_him, _ref)
+    check("editor ripple is stripped while real edits survive",
+          _m.getpixel((10, 8)) == (100, 100, 100, 255) and _m.getpixel((30, 8))[0] > 150,
+          f"ripple={_m.getpixel((10, 8))} edit={_m.getpixel((30, 8))}")
     # a machine without the game: prep must fail LOUDLY, not hang (a SystemExit
     # from czn_paths used to escape the worker's except and strand the dock)
     import types
