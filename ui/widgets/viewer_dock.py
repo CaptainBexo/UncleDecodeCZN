@@ -218,11 +218,16 @@ class ViewerDock(QWidget):
         if not self._need_game():
             return
         override = {os.path.basename(base) + ".sct": img}
+        # a mod with a stored pristine page previews the exact in-game result
+        _ref = os.path.join(os.path.dirname(data.DEFAULT_MODS), "backup",
+                            os.path.basename(img) + ".orig.png")
+        refs = {os.path.basename(base) + ".sct": _ref} if os.path.exists(_ref) else None
         slug = "mod_" + hashlib.sha1(("%s|%s" % (base, img)).encode("utf-8")).hexdigest()[:8]
         self._last = ("modspine", base, img)
         self._say("Preparing %s with %s ..." % (base, os.path.basename(img)))
         self._prep = SpinePrep(base + ".scsp", slug,
-                               os.path.join(data.SPINE_CACHE, slug), override, self)
+                               os.path.join(data.SPINE_CACHE, slug), override, self,
+                               ref_pages=refs)
         self._prep.done.connect(self._spine_ready)
         self._prep.start()
 

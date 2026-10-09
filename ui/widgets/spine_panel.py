@@ -87,9 +87,11 @@ class SpinePrep(QThread):
     done = Signal(bool, str, str)          # ok, slug, error-or-empty
 
     def __init__(self, src: str, slug: str, out_dir: str,
-                 override: dict | None = None, parent=None) -> None:
+                 override: dict | None = None, parent=None,
+                 ref_pages: dict | None = None) -> None:
         super().__init__(parent)
-        self._src, self._slug, self._out, self._override = src, slug, out_dir, override
+        self._src, self._slug, self._out = src, slug, out_dir
+        self._override, self._refs = override, ref_pages
 
     def run(self) -> None:
         import sys
@@ -99,7 +101,7 @@ class SpinePrep(QThread):
             sys.path.insert(0, sp)
         try:
             import spine_prep
-            spine_prep.prepare(self._src, self._out, self._override)
+            spine_prep.prepare(self._src, self._out, self._override, self._refs)
             self.done.emit(True, self._slug, "")
         except BaseException as e:  # noqa: BLE001 - SystemExit too: no game -> czn_paths exits
             msg = str(e) if isinstance(e, SystemExit) else "%s: %s" % (type(e).__name__, e)

@@ -132,9 +132,12 @@ def _fresh(out_dir: str) -> None:
     os.makedirs(out_dir)
 
 
-def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -> dict:
+def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None,
+            ref_pages: dict | None = None) -> dict:
     """spine_name: pack path of the skeleton, e.g. 'model/1041.scsp'.
-    override_pages: {atlas page name: local image path} - the image replaces that page."""
+    override_pages: {atlas page name: local image path} - the image replaces that page.
+    ref_pages: {atlas page name: pristine png} - with it, an override previews the
+    exact in-game result: same ripple pass + premultiply + ASTC roundtrip Apply does."""
     from PIL import Image
 
     from czn_pack import Pack
@@ -171,7 +174,27 @@ def prepare(spine_name: str, out_dir: str, override_pages: dict | None = None) -
             pw, ph = page_sizes.get(new, (0, 0))
             if pw and ph and im.size != (pw, ph):
                 im = im.resize((pw, ph), Image.LANCZOS)   # wrong-size art still previews
-            _page_ready(im).save(dst)
+            ref = (ref_pages or {}).get(old)
+            shown = False
+            if ref and os.path.exists(ref):
+                try:
+                    import tempfile
+
+                    from sct2_enc import encode_like
+                    orig = pack.extract(folder + old)
+                    fd, tmp = tempfile.mkstemp(prefix="czn_prev_", suffix=".png")
+                    os.close(fd)
+                    try:
+                        im.save(tmp)
+                        im, _m = decode(encode_like(orig, tmp, ref_png=ref))
+                        shown = True
+                    finally:
+                        os.remove(tmp)
+                except Exception:
+                    shown = False
+            if not shown:
+                im = _page_ready(im, 2)
+            im.save(dst)
         else:
             im, _meta = decode(pack.extract(folder + old))
             _page_ready(im).save(dst)

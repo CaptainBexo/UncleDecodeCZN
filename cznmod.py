@@ -47,7 +47,7 @@ STATE = os.path.join(MODS, ".state.json")
 LOG = os.path.join(MODS, ".log.txt")
 PIDF = os.path.join(MODS, ".watch.pid")
 GAME_EXE = "ssr-stove-shield.exe"
-EFFORT = os.environ.get("CZNMOD_EFFORT", "-medium")
+EFFORT = os.environ.get("CZNMOD_EFFORT", "-thorough")   # 0.5s/page, measurably cleaner edges than -medium
 IMG_EXT = (".png", ".webp", ".jpg", ".jpeg", ".modfile")
 
 
