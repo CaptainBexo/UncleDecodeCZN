@@ -305,6 +305,10 @@ class MainWindow(QWidget):
             self._show_upd_note("You're on the latest version")
             return
         self._upd_lbl.setText("Update available: v" + info["version"])
+        if getattr(sys, "frozen", False) and info.get("exe_url"):
+            # packaged build with a bare-exe asset: fetch it now, apply on close
+            self._start_download(info)
+            return
         if self._upd_silent:
             return                                  # startup: leave the news in the row
         box = QMessageBox(self)
@@ -330,6 +334,55 @@ class MainWindow(QWidget):
                 self._upd_lbl.setVisible(False)
 
         QTimer.singleShot(UPD_HIDE_MS, _clear)
+
+    def _start_download(self, info) -> None:
+        """Fetch the new exe in the background; it is applied on app close."""
+        if self._upd_dl is not None and self._upd_dl.isRunning():
+            return
+        target = os.path.abspath(sys.executable) + ".new"
+        try:
+            os.remove(target)
+        except OSError:
+            pass
+        self._upd_lbl.setVisible(True)
+        self._upd_lbl.setText("Downloading update v%s ..." % info["version"])
+        self._upd_dl = updater.Download(info["exe_url"], info.get("exe_sha256"), target, self)
+        self._upd_dl.progress.connect(self._download_progress)
+        self._upd_dl.done.connect(
+            lambda ok, path, err: self._download_done(ok, path, err, info))
+        self._upd_dl.finished.connect(self._upd_dl.deleteLater)
+        self._upd_dl.start()
+
+    def _download_progress(self, done: int, total: int) -> None:
+        if total:
+            self._upd_lbl.setText("Downloading update ... %d%%" % (done * 100 // total))
+        else:
+            self._upd_lbl.setText("Downloading update ... %.1f MB" % (done / 1048576.0))
+
+    def _download_done(self, ok: bool, path: str, err: str, info) -> None:
+        self._upd_dl = None
+        if not ok:
+            self._show_upd_note("Update download failed (will retry next start)")
+            return
+        self._upd_ready = path
+        self._upd_lbl.setVisible(True)
+        self._upd_lbl.setText("Update v%s ready - it will apply when you close the app"
+                              % info["version"])
+
+    def _apply_staged_update(self) -> None:
+        """A downloaded exe staged beside ours is swapped in after we exit."""
+        if not getattr(sys, "frozen", False):
+            return
+        staged = os.path.abspath(sys.executable) + ".new"
+        if not os.path.isfile(staged):
+            return
+        try:
+            script = updater.write_swap_script(os.getpid(), sys.executable)
+            subprocess.Popen(["cmd", "/c", script],
+                             creationflags=0x08000000 | 0x00000008,  # no window, detached
+                             close_fds=True)
+        except OSError:
+            pass
 
     def _set_page(self, name: str) -> None:
         if name == "Char ID":
@@ -482,6 +535,7 @@ class MainWindow(QWidget):
                       f"Export {os.path.basename(folder)}")
 
     def closeEvent(self, e) -> None:
+        self._apply_staged_update()
         self.char_loader.stop()
         super().closeEvent(e)
 
@@ -544,6 +598,8 @@ class MainWindow(QWidget):
         self._game_val = self._game_browse = None
         self._upd_thread = None            # running UpdateCheck, else None
         self._upd_silent = False           # startup check: no dialog, row only
+        self._upd_dl = None                # running Download, else None
+        self._upd_ready = None             # staged update path when downloaded
         for key, value in rows:
             row = QWidget(body)
             rl = QHBoxLayout(row)

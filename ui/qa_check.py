@@ -412,6 +412,40 @@ def main() -> None:
         check("update status fades away on its own", _faded)
     finally:
         _upd.fetch, _QMB.exec = _orig_fetch, _orig_exec
+    # self-update plumbing: asset pick, checksum, swap script (no network here)
+    import hashlib as _hl
+    import subprocess as _sp
+    _gh = {"tag_name": "v9.9", "html_url": "https://example/rel", "body": "notes",
+           "assets": [
+               {"browser_download_url": "https://example/rel.zip", "digest": "sha256:aa"},
+               {"browser_download_url": "https://example/rel.exe", "digest": "sha256:bb"}]}
+    _pi = _upd.parse(_gh)
+    check("update parse picks the bare-exe asset",
+          _pi["exe_url"].endswith(".exe") and _pi["exe_sha256"] == "bb"
+          and _pi["url"].endswith(".zip") and _pi["sha256"] == "aa", str(_pi))
+    _pi2 = _upd.parse({"tag_name": "v9.9",
+                       "assets": [{"browser_download_url": "https://example/rel.zip"}]})
+    check("update parse survives a release without the exe asset",
+          _pi2["exe_url"] == "" and _pi2["exe_sha256"] is None, str(_pi2))
+    _sdir = tempfile.mkdtemp(prefix="czn_sha_")
+    _sf = os.path.join(_sdir, "sha_test.bin")
+    with open(_sf, "wb") as _fh:
+        _fh.write(b"hello czn")
+    check("sha256_file matches hashlib",
+          _upd.sha256_file(_sf) == _hl.sha256(b"hello czn").hexdigest(), _upd.sha256_file(_sf)[:12])
+    _sd = tempfile.mkdtemp(prefix="czn_swap_")
+    _exe = os.path.join(_sd, "Foo.exe")
+    with open(_exe, "wb") as _fh:
+        _fh.write(b"OLD")
+    with open(_exe + ".new", "wb") as _fh:
+        _fh.write(b"NEW")
+    _bat = _upd.write_swap_script(999999, _exe)     # pid never exists: wait exits at once
+    _r1 = _sp.run(["cmd", "/c", _bat], capture_output=True, timeout=180)
+    _now = open(_exe, "rb").read()
+    check("update swap script replaces the exe and cleans up",
+          _now == b"NEW" and not os.path.exists(_exe + ".new")
+          and not os.path.exists(_exe + ".old") and not os.path.exists(_bat),
+          f"rc={_r1.returncode} exe={_now!r} files={sorted(os.listdir(_sd))}")
     menu["Char ID"].click()
     for _ in range(8):
         app.processEvents()
