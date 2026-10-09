@@ -59,9 +59,10 @@ def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad
         im = im.resize((w, hh), Image.LANCZOS)
     # Match the game's own texel conventions the same way the viewer prep
     # does: clear texels flushed to black, straight pages premultiplied
-    # once, straight leftovers on a premultiplied page premultiplied.
+    # once, straight leftovers on a premultiplied page premultiplied. Raw
+    # PNG input carries no decode noise, so the excess threshold is tight.
     import spine_prep
-    im = spine_prep._page_ready(im)
+    im = spine_prep._page_ready(im, tol=2)
 
     fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")
     os.close(fd)

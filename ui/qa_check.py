@@ -665,6 +665,14 @@ def main() -> None:
           abs(_st3[0] - 71) < 8 and abs(_st3[1] - 21) < 8 and _st3[3] == 90
           and _o3.getpixel((100, 100)) == (100, 15, 15, 128),
           f"stroke={_st3} clean={_o3.getpixel((100, 100))}")
+    # a slight overshoot (rgb = alpha + 6) must be fixed with the tight
+    # tolerance the apply path uses, and ignored with the loose viewer one
+    _tip = _PImage.new("RGBA", (8, 8), (0, 0, 0, 0))
+    _tip.putpixel((4, 4), (106, 106, 106, 100))
+    _h1 = spine_prep._page_ready(_tip, tol=2).getpixel((4, 4))
+    _h2 = spine_prep._page_ready(_tip, tol=12).getpixel((4, 4))
+    check("slight alpha overshoot is premultiplied only under the tight tolerance",
+          _h1[0] == 41 and _h2[0] == 106, f"tight={_h1} loose={_h2}")
     # a machine without the game: prep must fail LOUDLY, not hang (a SystemExit
     # from czn_paths used to escape the worker's except and strand the dock)
     import types
