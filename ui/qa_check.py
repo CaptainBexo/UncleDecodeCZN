@@ -717,6 +717,24 @@ def main() -> None:
           and 50 < _stroke[0] < 150,
           f"corner={_corner} center={_center} stroke={_stroke} "
           f"work-leftover={os.path.exists(_tp + '.clean.png')}")
+    # an overflowing encode retries with snap-flattening before giving up
+    _acalls: list = []
+    _real_astc = _enc._astc_encode
+
+    def _fake_astc(path, _w, _h, _bw, _bh, effort="-medium"):
+        _acalls.append(effort)
+        if len(_acalls) == 1:
+            return b"\xff" * 500000          # overflow: 500 KB > the tiny budget
+        return b"\x00" * 64                  # flattened retry fits
+
+    _enc._astc_encode = _fake_astc
+    try:
+        _out3 = _enc.encode_like(_orig, _tp, "-fast")
+        _salvage_ok = len(_acalls) == 2 and len(_out3) == len(_orig)
+    finally:
+        _enc._astc_encode = _real_astc
+    check("encode salvages an overflowing stream with the snap retry",
+          _salvage_ok, f"attempts={len(_acalls)}")
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")

@@ -26,50 +26,85 @@ def _astc_encode(png_path, w, h, bw, bh, effort="-medium"):
         raise RuntimeError(f"astcenc output not a .astc file: {data[:4].hex()}")
     return data[16:]
 
+def _snapped(im, step: int):
+    """Round rgb to the nearest multiple of `step` (alpha untouched) - flattens
+    resample noise so the ASTC/lz4 stream fits the texture's fixed byte budget."""
+    r, g, b, a = im.split()
+    half = step // 2
+    snap = lambda ch: ch.point(lambda v: min(255, ((v + half) // step) * step))  # noqa: E731
+    return Image.merge("RGBA", (snap(r), snap(g), snap(b), a))
+
+
 def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad="zeros") -> bytes:
-    """Re-encode PNG as SCT2 with the same header/flags as `orig`, keep_len = pad to original size."""
+    """Re-encode PNG as SCT2 with the same header/flags as `orig`, keep_len = pad to original size.
+
+    When the encoded stream overflows the original byte budget (heavily
+    resampled artwork compresses worse), rgb is snapped to a small step and
+    the encode retried before giving up."""
     h = parse_header(orig)
     pf = h["pixel_format"]
     w, hh = h["width"], h["height"]
-    if pf in (40, 44, 47):
-        bw = {40: 4, 44: 6, 47: 8}[pf]
-        # astcenc needs image with exact w×h; resize input if mismatched
-        im = Image.open(png_path).convert("RGBA")
-        if im.size != (w, hh):
-            im = im.resize((w, hh), Image.LANCZOS)
-        # Match the game's own texel conventions the same way the viewer prep
-        # does: clear texels flushed to black, straight pages premultiplied
-        # once, straight leftovers on a premultiplied page premultiplied. The
-        # work copy goes to a temp file - never next to the user's source.
-        import spine_prep
-        im = spine_prep._page_ready(im)
-        fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")
-        os.close(fd)
-        try:
-            im.save(work)
-            block_data = _astc_encode(work, w, hh, bw, bw, effort)
-        finally:
-            for leftover in (work, work + f".{bw}x{bw}.astc"):
-                try:
-                    os.remove(leftover)
-                except OSError:
-                    pass
-    else:
-        raise NotImplementedError(f"encode for format {pf} not implemented")
     doff = h["data_offset"]
     header = bytearray(orig[:doff])
     # mirror the original texture layout: bit31 clear = bare raw (no size pair,
     # the engine reads pixels right at data_offset); bit31 set = [u32 unc][u32 comp][lz4]
     exp = expected_size(pf, w, hh)
     bare = exp is not None and (len(orig) - doff) == exp and not (h["flags"] & 0x80000000)
-    if bare:
-        out = bytes(header) + block_data
-    else:
-        lz = lz4.block.compress(block_data, store_size=False, mode="high_compression")
-        out = bytes(header) + struct.pack("<II", len(block_data), len(lz)) + lz
+    if pf not in (40, 44, 47):
+        raise NotImplementedError(f"encode for format {pf} not implemented")
+    bw = {40: 4, 44: 6, 47: 8}[pf]
+    # astcenc needs image with exact w×h; resize input if mismatched
+    im = Image.open(png_path).convert("RGBA")
+    if im.size != (w, hh):
+        im = im.resize((w, hh), Image.LANCZOS)
+    # Match the game's own texel conventions the same way the viewer prep
+    # does: clear texels flushed to black, straight pages premultiplied
+    # once, straight leftovers on a premultiplied page premultiplied.
+    import spine_prep
+    im = spine_prep._page_ready(im)
+
+    fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")
+    os.close(fd)
+
+    def _attempt(candidate) -> bytes | None:
+        """Encode one candidate image; None when it cannot fit the budget."""
+        try:
+            candidate.save(work)
+            block = _astc_encode(work, w, hh, bw, bw, effort)
+        finally:
+            try:
+                os.remove(work + f".{bw}x{bw}.astc")
+            except OSError:
+                pass
+        if bare:
+            out = bytes(header) + block
+        else:
+            lz = lz4.block.compress(block, store_size=False, mode="high_compression")
+            out = bytes(header) + struct.pack("<II", len(block), len(lz)) + lz
+        if keep_len and len(out) > len(orig):
+            return None
+        return out
+
+    try:
+        out = _attempt(im)
+        for step in (4, 8):                # salvage: flatten resample noise
+            if out is not None:
+                break
+            out = _attempt(_snapped(im, step))
+            if out is not None:
+                print(f"[i] {os.path.basename(png_path)}: flattened to step {step} "
+                      "to fit the texture byte budget", flush=True)
+    finally:
+        try:
+            os.remove(work)
+        except OSError:
+            pass
+    if out is None:
+        raise RuntimeError(
+            f"encoded image does not fit {len(orig):,} bytes even after flattening - "
+            "the picture carries too much fine detail/noise for this texture "
+            "(tip: export at the exact original size; avoid repeated resampling)")
     if keep_len:
-        if len(out) > len(orig):
-            raise RuntimeError(f"encoded {len(out):,} > original {len(orig):,}; lz4 too big")
         out = out + b"\x00" * (len(orig) - len(out))
         # keep total field = original (== our padded len)
     out = bytearray(out)
