@@ -258,6 +258,11 @@ def main() -> None:
         for _ in range(4):
             app.processEvents()
         check("clicking the eye requests a preview", got2.get("row") == 0, str(got2))
+        for _ in range(300):           # WebEngine needs a moment to switch the URL
+            app.processEvents()
+            time.sleep(0.01)
+            if "img=" in win.dock.panel.view.url().toString():
+                break
         check("eye click opens the dock on the mod image",
               win.dock.isVisible() and "img=" in win.dock.panel.view.url().toString(),
               win.dock.panel.view.url().toString())
@@ -649,6 +654,17 @@ def main() -> None:
     _o2 = spine_prep._page_ready(_pm)
     check("premultiplied pages pass through untouched",
           _o2.getpixel((100, 100)) == (100, 15, 15, 128), str(_o2.getpixel((100, 100))))
+    # a straight brush stroke on a premultiplied page: only the stroke is fixed
+    _mix = _PImage.new("RGBA", (200, 200), (0, 0, 0, 0))
+    _PImageDraw.Draw(_mix).ellipse((30, 30, 170, 170), fill=(100, 15, 15, 128))
+    for _i in range(60):                          # diagonal straight-alpha stroke
+        _mix.putpixel((40 + _i, 40 + _i), (200, 60, 60, 90))
+    _o3 = spine_prep._page_ready(_mix)
+    _st3 = _o3.getpixel((70, 70))
+    check("straight brush strokes on a premultiplied page get premultiplied",
+          abs(_st3[0] - 71) < 8 and abs(_st3[1] - 21) < 8 and _st3[3] == 90
+          and _o3.getpixel((100, 100)) == (100, 15, 15, 128),
+          f"stroke={_st3} clean={_o3.getpixel((100, 100))}")
     # a machine without the game: prep must fail LOUDLY, not hang (a SystemExit
     # from czn_paths used to escape the worker's except and strand the dock)
     import types
@@ -687,16 +703,20 @@ def main() -> None:
     _tw, _th = _o0.size
     _test = Image.new("RGBA", (_tw, _th), (255, 255, 255, 0))
     _test.paste((200, 30, 30, 255), (_tw//4, _th//4, _tw*3//4, _th*3//4))
+    _test.paste((200, 60, 60, 120), (8, 8, 24, 24))       # straight semi block
     _tp = os.path.join(prep_src, "white_bg_test.png")
     _test.save(_tp)
     _enc_out = _enc.encode_like(_orig, _tp, "-fast")
     _o1, _ = _dec(_enc_out)
     _corner = _o1.getpixel((2, 2))
     _center = _o1.getpixel((_tw//2, _th//2))
+    _stroke = _o1.getpixel((16, 16))
     check("encode flushes white under zero alpha (Clip Studio export)",
           _corner[3] < 40 and max(_corner[:3]) < 60 and _center[3] > 200
-          and not os.path.exists(_tp + ".clean.png"),
-          f"corner={_corner} center={_center} work-leftover={os.path.exists(_tp + '.clean.png')}")
+          and not os.path.exists(_tp + ".clean.png")
+          and 50 < _stroke[0] < 150,
+          f"corner={_corner} center={_center} stroke={_stroke} "
+          f"work-leftover={os.path.exists(_tp + '.clean.png')}")
     # the picker / drop route a game-named image to its pack model
     from PySide6.QtWidgets import QFileDialog
     _png = os.path.join(prep_src, "1041.png")

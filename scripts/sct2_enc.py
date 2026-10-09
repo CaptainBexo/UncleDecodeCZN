@@ -37,15 +37,12 @@ def encode_like(orig: bytes, png_path: str, effort="-medium", keep_len=True, pad
         im = Image.open(png_path).convert("RGBA")
         if im.size != (w, hh):
             im = im.resize((w, hh), Image.LANCZOS)
-        # Some editors (Clip Studio Paint) export fully transparent pixels with
-        # white RGB; the game's own pages keep them black, and light values
-        # under zero alpha bleed through texture filtering into visible art as
-        # white fringes. Flush them to black before encoding. The normalized
-        # copy goes to a temp file - never next to the user's source image.
-        a = im.getchannel("A")
-        if a.getextrema()[0] == 0:
-            im = Image.composite(Image.new("RGBA", im.size, (0, 0, 0, 0)), im,
-                                 a.point(lambda v: 255 if v == 0 else 0))
+        # Match the game's own texel conventions the same way the viewer prep
+        # does: clear texels flushed to black, straight pages premultiplied
+        # once, straight leftovers on a premultiplied page premultiplied. The
+        # work copy goes to a temp file - never next to the user's source.
+        import spine_prep
+        im = spine_prep._page_ready(im)
         fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")
         os.close(fd)
         try:

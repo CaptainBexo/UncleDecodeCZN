@@ -57,10 +57,31 @@ def _flush_clear_whites(im):
     return im
 
 
+def _premultiply_excess(im):
+    """Pixels brighter than their own alpha on an otherwise premultiplied page
+    (editor brush strokes keep full-brightness rgb under low alpha) render as
+    bright fringes in-game. Premultiply exactly those - never the clean ones."""
+    from PIL import Image, ImageChops
+    im = im.convert("RGBA")
+    a = im.getchannel("A")
+    a3 = Image.merge("RGB", [a, a, a])
+    r, g, b = ImageChops.subtract(im.convert("RGB"), a3).split()
+    m = ImageChops.lighter(ImageChops.lighter(r, g), b).point(lambda v: 255 if v > 24 else 0)
+    if not m.getbbox():
+        return im
+    rgb = Image.composite(ImageChops.multiply(im.convert("RGB"), a3),
+                          im.convert("RGB"), m)
+    return Image.merge("RGBA", (*rgb.split(), a))
+
+
 def _page_ready(im):
-    """Flush clear-texel whites, then premultiply only when the source is straight alpha."""
+    """Flush clear-texel whites, then normalize the premultiply state: a fully
+    straight page is premultiplied once; a premultiplied page only gets its
+    straight (too-bright) leftovers premultiplied."""
     im = _flush_clear_whites(im)
-    return im if _is_premultiplied(im) else _premultiply(im)
+    if _is_premultiplied(im):
+        return _premultiply_excess(im)
+    return _premultiply(im)
 
 
 def _rewrite_pages(text: str, rename: bool = True):
