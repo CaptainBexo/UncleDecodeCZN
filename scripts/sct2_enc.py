@@ -62,15 +62,14 @@ def encode_like(orig: bytes, png_path: str, effort="-thorough", keep_len=True, p
     # does: clear texels flushed to black, straight pages premultiplied
     # once, straight leftovers on a premultiplied page premultiplied. Raw
     # PNG input carries no decode noise, so the excess threshold is tight.
-    # With the pristine page at hand, also strip the editor roundtrip's
-    # high-frequency ripple (the pale fringes along every line).
+    # NOTE (v0.8.2): the pristine-reference ripple pass (_match_source) is NOT
+    # applied here. It regressed the user's soft-brush strokes: at feathered
+    # stroke edges (partial coverage of the original linework) the small
+    # high-frequency steps ARE the intended blend, and clipping them pulled
+    # those pixels back toward the reference - faint ghost lines along every
+    # stroke edge, worse than the ripple it removed. Kept in spine_prep for
+    # reference only.
     import spine_prep
-    if ref_png is not None:
-        try:
-            _ref_im = ref_png if isinstance(ref_png, Image.Image) else Image.open(ref_png)
-            im = spine_prep._match_source(im, _ref_im)
-        except OSError:
-            pass
     im = spine_prep._page_ready(im, tol=2)
 
     fd, work = tempfile.mkstemp(prefix="czn_enc_", suffix=".png")

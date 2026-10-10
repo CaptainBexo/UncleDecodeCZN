@@ -1,4 +1,4 @@
-# Uncle'sCZNMMMI v0.8.1
+# Uncle'sCZNMMMI v0.8.2
 
 Lightweight **image / UI mod manager** for **Chaos Zero Nightmare** (STOVE).
 Swap character art, portraits and UI textures with your own images — the game
@@ -28,7 +28,7 @@ Download the zip from the **Assets** section below, unzip anywhere, run the exe.
 ## Quick start
 
 1. Download the release zip (Assets, below) and unzip it anywhere.
-2. Run **`Uncle'sCZNMMMI v0.8.1.exe`**.
+2. Run **`Uncle'sCZNMMMI v0.8.2.exe`**.
    Windows SmartScreen may warn ("Windows protected your PC") because the file
    is not code-signed — click **More info → Run anyway**. First start takes a
    few extra seconds while the exe unpacks itself.
@@ -70,15 +70,9 @@ Nothing in the viewer writes to the game.
 ## Notes
 
 - The game must be **closed** while applying.
-- **Fringe cleanup (v0.8)**: edits exported from image editors (Clip Studio
-  Paint, Photoshop resamples…) carry a tiny brightness ripple along every line
-  that shows up in-game as pale fringe dots. Apply mods now compares your image
-  against the pristine page and strips that ripple automatically while keeping
-  every real edit — nothing extra to do on your side.
-- The **Viewer's mod preview (v0.8.1)** now shows the *exact* in-game result:
-  the same ripple pass, texel cleanup and texture-compression roundtrip the
-  game's files go through, so what you see in the preview is what the game
-  loads.
+- The **Viewer's mod preview (v0.8.1)** shows the *exact* in-game result: the
+  same texel cleanup and texture-compression roundtrip the game's files go
+  through, so what you see in the preview is what the game loads.
 - The tool can check for updates: **Settings → Check update** (and once at startup
   with a short delay). It makes a single anonymous request to the release page -
   nothing about you or your game is sent.
